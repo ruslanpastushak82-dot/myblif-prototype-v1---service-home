@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    {
+      "id": "src/screens/ServiceHome/ServiceHome.tsx",
+      "label": "ServiceHome",
+      "routes": [
+        "/*",
+        "/service-home"
+      ],
+      "dataModelId": "1425:2047",
+      "isRoot": true
+    },
+    {
+      "id": "src/screens/ServiceCalendar/ServiceCalendar.tsx",
+      "label": "ServiceCalendar",
+      "routes": [
+        "/service-calendar"
+      ]
+    },
+    {
+      "id": "src/screens/ServiceCalendarV2/ServiceCalendarV2.tsx",
+      "label": "ServiceCalendarV2",
+      "routes": [
+        "/service-calendar-v2"
+      ]
+    },
+    {
+      "id": "src/screens/ServiceCalendarDay/ServiceCalendarDay.tsx",
+      "label": "ServiceCalendarDay",
+      "routes": [
+        "/service-calendar-day"
+      ]
+    },
+    {
+      "id": "src/screens/ServiceOrder/ServiceOrder.tsx",
+      "label": "ServiceOrder",
+      "routes": [
+        "/service-order"
+      ]
+    },
+    {
+      "id": "src/screens/ServiceProfessional/ServiceProfessional.tsx",
+      "label": "ServiceProfessional",
+      "routes": [
+        "/service-professional"
+      ]
+    },
+    {
+      "id": "src/screens/RequestChat/RequestChat.tsx",
+      "label": "RequestChat",
+      "routes": [
+        "/request-u43-chat"
+      ],
+      "dataModelId": "1425:1851"
+    },
+    {
+      "id": "src/screens/QuickRequestExport/QuickRequestExport.tsx",
+      "label": "QuickRequestExport",
+      "routes": [
+        "/quick-request-u8212-export-diagnostic"
+      ],
+      "dataModelId": "1425:1929"
+    }
+  ],
+  "edges": []
+}
