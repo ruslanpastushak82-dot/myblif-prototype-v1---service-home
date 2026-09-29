@@ -211,16 +211,21 @@ export const MainContentSubsection = (): JSX.Element => {
           >
             <CardContent className={`p-6 ${navy}`}>
               <h2 className="text-lg font-bold">Request Details</h2>
-              <div className="mt-3 space-y-4">
+              <div className="mt-3 space-y-3">
+                <p>Name: {request.name || "—"}</p>
+                <p>Client Type: {request.clientType || "—"}</p>
                 <p>Service: {request.serviceType || "—"}</p>
                 <p className="max-w-[500px] leading-[1.35]">
                   Request: {request.requestDetails || "—"}
                 </p>
-              </div>
-              <div className="mt-10 space-y-3">
-                <p>Urgency: {request.urgency || "—"}</p>
-                <p>Preferred Period: {request.preferredPeriod || "—"}</p>
+                {request.urgency && <p>Urgency: {request.urgency}</p>}
+                {request.preferredPeriod && (
+                  <p>Preferred Period: {request.preferredPeriod}</p>
+                )}
                 <p>Location: {request.approximateLocation || "—"}</p>
+                {request.propertyType && (
+                  <p>Property Type: {request.propertyType}</p>
+                )}
               </div>
               <h3 className="mt-4 font-bold text-[13px]">Attachments</h3>
               <div className="mt-3 flex flex-wrap gap-2">
