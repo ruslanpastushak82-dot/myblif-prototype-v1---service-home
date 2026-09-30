@@ -74,7 +74,7 @@ export const ServiceHome = (): JSX.Element => {
         </Select>
       </header>
       <section
-        className="absolute left-[163.8125px] top-[5.18%] z-10 flex w-[43%] flex-col gap-3"
+        className="absolute left-[13.2%] top-[5.18%] z-10 flex w-[43%] flex-col gap-3"
         aria-labelledby="service-title"
       >
         <h1
