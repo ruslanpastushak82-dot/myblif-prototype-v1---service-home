@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "../../../lib/supabase";
 import { Button } from "../../../components/ui/button";
 import {
   Card,
@@ -44,6 +46,20 @@ const financialFields = [
 
 export const EstimateManagementSection = (): JSX.Element => {
   const [selectedStatus, setSelectedStatus] = useState("Confirmed");
+  const { reference } = useParams<{ reference?: string }>();
+  const [date, setDate] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [duration, setDuration] = useState("");
+
+  const sendAppointment = async () => {
+    if (!reference || !date || !arrivalTime || !duration) return;
+    const minutes = Number(duration);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    const { data: order } = await supabase.from("requests").select("id").eq("reference", reference).maybeSingle();
+    if (!order) return;
+    const { error } = await supabase.rpc("set_service_request_appointment", { p_request_id: order.id, p_date: date, p_arrival_time: arrivalTime, p_duration_minutes: minutes });
+    if (!error) setSelectedStatus("Sent");
+  };
 
   return (
       <Card className="w-full max-w-[456px] overflow-hidden rounded-[14px] border-2 border-solid border-[#012878] bg-[#fffffff0] shadow-[0px_3px_10px_#01287814]">
@@ -60,7 +76,11 @@ export const EstimateManagementSection = (): JSX.Element => {
                   {field.label}
                 </label>
                 <Input
-                  defaultValue={field.value}
+                  type={field.label === "Date" ? "date" : field.label === "Arrival Time" ? "time" : field.label === "Estimated Duration" ? "number" : "text"}
+                  value={field.label === "Date" ? date : field.label === "Arrival Time" ? arrivalTime : field.label === "Estimated Duration" ? duration : field.value}
+                  onChange={(e) => { if (field.label === "Date") setDate(e.target.value); else if (field.label === "Arrival Time") setArrivalTime(e.target.value); else if (field.label === "Estimated Duration") setDuration(e.target.value); }}
+                  readOnly={field.label === "Estimated Cost"}
+                  placeholder={field.label === "Estimated Duration" ? "Minutes" : undefined}
                   className="h-8 rounded-lg border-2 border-[#012878] bg-[#f9fbfd] px-2.5 [font-family:'Inter',Helvetica] text-[13px] font-normal leading-normal tracking-[0] text-[#1e283a] shadow-none focus-visible:ring-0"
                 />
               </div>
@@ -69,6 +89,8 @@ export const EstimateManagementSection = (): JSX.Element => {
             <div className="col-start-2 mt-1">
               <Button
                 type="button"
+                onClick={() => void sendAppointment()}
+                disabled={!reference || !date || !arrivalTime || !duration}
                 className="h-[38px] w-full rounded-[9px] border-2 border-[#012878] bg-[#012878] px-0 [font-family:'Inter',Helvetica] text-[13px] font-normal text-white opacity-40 shadow-none hover:bg-[#012878]"
               >
                 Send to Customer
