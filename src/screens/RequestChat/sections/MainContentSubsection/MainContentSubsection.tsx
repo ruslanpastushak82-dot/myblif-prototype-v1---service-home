@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../../../../lib/supabase";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../../components/ui/button";
@@ -61,7 +62,20 @@ export const MainContentSubsection = (): JSX.Element => {
   // directly, with nothing submitted yet this session) -- fall back to an
   // empty display-only request rather than crashing. Every `request.*`
   // reference below is unchanged from Stage 1.
-  const request = activeRequest ?? emptyCustomerRequest();
+  const [backendRequest, setBackendRequest] = useState<any>(null);
+  const [storedMessages, setStoredMessages] = useState<any[]>([]);
+  const request = backendRequest ?? activeRequest ?? emptyCustomerRequest();
+
+  useEffect(() => {
+    if (!activeRequest?.id) return;
+    const load = async () => {
+      const { data } = await supabase.from("requests").select("*").eq("id", activeRequest.id).maybeSingle();
+      if (data) setBackendRequest({ ...activeRequest, status: data.status, professionalStatus: data.professional_status, appointmentDecision: data.appointment_decision, appointment: data.appointment_date ? { date: data.appointment_date, time: data.appointment_arrival_time ?? "", duration: data.appointment_duration_minutes ? `${data.appointment_duration_minutes} min` : "", price: "" } : null });
+      const { data: chat } = await supabase.from("messages").select("id,text,sender_id,created_at").eq("request_id", activeRequest.id).is("offer_id", null).order("created_at");
+      if (chat) setStoredMessages(chat);
+    };
+    void load();
+  }, [activeRequest?.id]);
 
   // Stage 2B §4 (Appointment safety): while there's no real Appointment yet
   // (request.appointment === null), Confirm/Decline stay disabled and
@@ -95,10 +109,15 @@ export const MainContentSubsection = (): JSX.Element => {
     if (isReadOnly) return;
     const trimmed = chatDraft.trim();
     if (!trimmed && pendingAttachments.length === 0) return;
-    sendMessage(
-      trimmed,
-      pendingAttachments.map(({ file, kind }) => ({ file, kind })),
-    );
+    if (request.id) {
+      void supabase.auth.getUser().then(async ({ data }) => {
+        if (!data.user) return;
+        const { data: inserted, error } = await supabase.from("messages").insert({ request_id: request.id, sender_id: data.user.id, text: trimmed }).select("id,text,sender_id,created_at").single();
+        if (!error && inserted) setStoredMessages((prev) => [...prev, inserted]);
+      });
+    } else {
+      sendMessage(trimmed, pendingAttachments.map(({ file, kind }) => ({ file, kind })));
+    }
     setChatDraft("");
     setPendingAttachments([]);
   };
@@ -280,7 +299,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 <Button
                   type="button"
                   disabled={appointmentActionsDisabled}
-                  onClick={() => setAppointmentDecision("declined")}
+                  onClick={() => request.id ? void supabase.rpc("respond_to_service_appointment", { p_request_id: request.id, p_decision: "declined" }).then(({ data }) => { if (data) setBackendRequest((prev: any) => ({ ...prev, status: "rescheduled", professionalStatus: "under_review", appointmentDecision: "declined" })); }) : setAppointmentDecision("declined")}
                   className={`h-[42px] flex-1 rounded-[10px] border-2 font-bold disabled:opacity-50 ${border} ${
                     request.appointmentDecision === "declined"
                       ? "bg-[#012878] text-white hover:bg-[#012878]"
@@ -292,7 +311,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 <Button
                   type="button"
                   disabled={appointmentActionsDisabled}
-                  onClick={() => setAppointmentDecision("confirmed")}
+                  onClick={() => request.id ? void supabase.rpc("respond_to_service_appointment", { p_request_id: request.id, p_decision: "confirmed" }).then(({ data }) => { if (data) setBackendRequest((prev: any) => ({ ...prev, status: "confirmed", professionalStatus: "approved", appointmentDecision: "confirmed" })); }) : setAppointmentDecision("confirmed")}
                   className={`h-[42px] flex-1 rounded-[10px] border-2 font-bold disabled:opacity-50 ${border} ${
                     request.appointmentDecision === "confirmed"
                       ? "bg-[#012878] text-white hover:bg-[#012878]"
@@ -325,7 +344,7 @@ export const MainContentSubsection = (): JSX.Element => {
             <CardContent className={`flex h-full flex-col p-6 ${navy}`}>
               <h2 className="text-lg font-bold">MYBLIF Chat</h2>
               <div className="mt-3 flex flex-1 flex-col gap-6 overflow-y-auto">
-                {request.messages.map((chat) => (
+                {(request.id && storedMessages.length > 0 ? storedMessages.map((m) => ({ id: m.id, text: m.text, from: m.sender_id === activeRequest?.id ? "customer" : "professional" })) : request.messages).map((chat) => (
                   <div
                     key={chat.id}
                     className={`flex ${
