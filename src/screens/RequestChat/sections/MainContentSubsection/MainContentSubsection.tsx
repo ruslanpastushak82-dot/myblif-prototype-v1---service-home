@@ -64,7 +64,14 @@ export const MainContentSubsection = (): JSX.Element => {
   // reference below is unchanged from Stage 1.
   const [backendRequest, setBackendRequest] = useState<any>(null);
   const [storedMessages, setStoredMessages] = useState<any[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const request = backendRequest ?? activeRequest ?? emptyCustomerRequest();
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     if (!activeRequest?.id) return;
@@ -344,7 +351,7 @@ export const MainContentSubsection = (): JSX.Element => {
             <CardContent className={`flex h-full flex-col p-6 ${navy}`}>
               <h2 className="text-lg font-bold">MYBLIF Chat</h2>
               <div className="mt-3 flex flex-1 flex-col gap-6 overflow-y-auto">
-                {(request.id && storedMessages.length > 0 ? storedMessages.map((m) => ({ id: m.id, text: m.text, from: m.sender_id === activeRequest?.id ? "customer" : "professional" })) : request.messages).map((chat) => (
+                {(request.id && storedMessages.length > 0 ? storedMessages.map((m) => ({ id: m.id, text: m.text, from: m.sender_id === currentUserId ? "customer" : "professional" })) : request.messages).map((chat) => (
                   <div
                     key={chat.id}
                     className={`flex ${
