@@ -1,5 +1,6 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabase";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -135,6 +136,13 @@ function TimeSummary({
 
 export const SchedulingDashboardSection = (): JSX.Element => {
   const [view, setView] = useState("Week");
+  const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    void supabase.from("requests").select("id,reference,service_type,appointment_date,appointment_arrival_time,status").eq("appointment_decision", "confirmed").eq("professional_status", "approved").not("appointment_date", "is", null).then(({ data, error }) => {
+      if (!error && data) setConfirmedEvents(data);
+    });
+  }, []);
 
   return (
     <main className="mx-auto flex w-full max-w-[1296px] flex-col gap-2 px-1 py-1 font-['Inter',Helvetica] text-[#012878]">
@@ -256,6 +264,22 @@ export const SchedulingDashboardSection = (): JSX.Element => {
                   </div>
                 )}
 
+                {confirmedEvents
+                  .filter((event) => {
+                    const d = new Date(event.appointment_date + "T12:00:00");
+                    return d.getDate().toString() === item.date;
+                  })
+                  .map((event) => (
+                    <article
+                      key={event.id}
+                      className="absolute left-1 right-1 top-[145px] rounded-lg border border-[#bfcce0] bg-[#f7f9ff] p-1 text-[7px] leading-tight text-black sm:text-[9px]"
+                    >
+                      <div>{event.service_type}</div>
+                      <div>{event.reference}</div>
+                      <div>{event.appointment_date} · {event.appointment_arrival_time?.slice(0, 5)}</div>
+                      <div>Confirmed</div>
+                    </article>
+                  ))}
                 {events
                   .filter((event) => event.day === index)
                   .map((event) => (
