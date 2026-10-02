@@ -1,7 +1,8 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../../components/ui/button";
+import { supabase } from "../../../lib/supabase";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
   DropdownMenu,
@@ -14,7 +15,7 @@ import {
   ToggleGroupItem,
 } from "../../../components/ui/toggle-group";
 import type { ProfessionalWorkflowStatus } from "../../../state/CustomerRequestContext";
-import { useCustomerRequest } from "../../../state/CustomerRequestContext";
+
 
 // Layout template: Calendar Day's SchedulingDashboardSection.tsx, verbatim
 // values copied 1:1 (not Calendar Month). Same navy/border/panel tokens.
@@ -119,7 +120,7 @@ export const OrdersManagementSection = (): JSX.Element => {
   const [selectedTab, setSelectedTab] = useState("All Orders");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { requests } = useCustomerRequest();
+  const [backendOrders, setBackendOrders] = useState<Array<{\n    id: string;\n    reference: string;\n    service_type: string;\n    professional_status: ProfessionalWorkflowStatus;\n  }>>([]);\n\n  useEffect(() => {\n    let active = true;\n\n    const loadNewOrders = async () => {\n      const { data, error } = await supabase.rpc("get_service_new_orders");\n      if (!active || error || !data) return;\n\n      setBackendOrders(\n        data.map((item) => ({\n          id: item.id,\n          reference: item.reference,\n          service_type: item.service_type,\n          professional_status: item.professional_status,\n        })),\n      );\n    };\n\n    void loadNewOrders();\n\n    return () => {\n      active = false;\n    };\n  }, []);
 
   // Real Customer-submitted orders, newest last (submission order) — kept
   // append-only after the 5 existing mock rows, per Stage 2A §2 ("не
@@ -143,7 +144,7 @@ export const OrdersManagementSection = (): JSX.Element => {
           if (item.reference) navigate(`/service-order/${item.reference}`);
         },
       })),
-    [requests, navigate],
+    [backendOrders, navigate],
   );
 
   const rows: OrderRow[] = [
