@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabase";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
@@ -62,6 +63,14 @@ export const TechnicianChatSection = ({
   // for a real order (customerRequest present, with its own reference) --
   // the mock/no-order fallback keeps the exact Stage 1 inert behaviour.
   const [draft, setDraft] = useState("");
+  const [storedMessages, setStoredMessages] = useState<Array<{ id: string; text: string; sender_id: string }>>([]);
+
+  useEffect(() => {
+    if (!customerRequest?.id) return;
+    void supabase.from("messages").select("id,text,sender_id").eq("request_id", customerRequest.id).is("offer_id", null).order("created_at").then(({ data, error }) => {
+      if (!error && data) setStoredMessages(data);
+    });
+  }, [customerRequest?.id]);
 
   // Security hardening (pre-Stage-2C audit): the Professional composer had
   // no Completed-order gating at all before -- UI-level only, mirroring
@@ -83,11 +92,25 @@ export const TechnicianChatSection = ({
     const trimmed = draft.trim();
     if (!trimmed) return;
 
-    sendProfessionalMessage(customerRequest.reference, trimmed);
+    if (customerRequest.id) {
+      void supabase.auth.getUser().then(async ({ data }) => {
+        if (!data.user) return;
+        const { data: inserted, error } = await supabase.from("messages").insert({ request_id: customerRequest.id, sender_id: data.user.id, text: trimmed }).select("id,text,sender_id").single();
+        if (!error && inserted) setStoredMessages((prev) => [...prev, inserted]);
+      });
+    } else {
+      sendProfessionalMessage(customerRequest.reference, trimmed);
+    }
     setDraft("");
   };
 
-  const messages = customerRequest
+  const messages = customerRequest?.id && storedMessages.length > 0
+    ? storedMessages.map((message) => ({
+        id: message.id,
+        text: message.text,
+        className: "w-full max-w-[520px] self-end bg-[#eaeff4]",
+      }))
+    : customerRequest
     ? customerRequest.messages.map((message) => ({
         id: message.id,
         text: message.text,
