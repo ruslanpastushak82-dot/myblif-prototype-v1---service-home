@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ProfessionalShell } from "../../components/ProfessionalShell/ProfessionalShell";
+import { supabase } from "../../lib/supabase";
 import {
   Select,
   SelectContent,
