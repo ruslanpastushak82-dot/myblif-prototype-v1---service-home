@@ -178,7 +178,11 @@ export type CustomerRequestContextValue = {
   updateDraft: (patch: Partial<CustomerRequest>) => void;
   addMedia: (file: File, kind: MediaKind) => void;
   removeMedia: (id: string, kind: MediaKind) => void;
-  submitRequest: () => { ok: true } | { ok: false; missing: string[] };
+  submitRequest: (persisted?: {
+    id: string;
+    reference: string;
+    submittedAt?: string | null;
+  }) => { ok: true } | { ok: false; missing: string[] };
   setAppointmentDecision: (decision: "confirmed" | "declined") => void;
   // Customer side (Stage 1/2A, unchanged): always targets whichever order
   // is currently `activeRequest`.
@@ -300,13 +304,19 @@ export const CustomerRequestProvider = ({
     [revokeUrl],
   );
 
-  const submitRequest = useCallback(() => {
+  const submitRequest = useCallback((persisted?: {
+    id: string;
+    reference: string;
+    submittedAt?: string | null;
+  }) => {
     const missing = getMissingRequiredFields(draft);
     if (missing.length > 0) {
       return { ok: false as const, missing };
     }
 
-    const reference = `MYB-S26-${Math.floor(100000 + Math.random() * 900000)}`;
+    const reference =
+      persisted?.reference ??
+      `MYB-S26-${Math.floor(100000 + Math.random() * 900000)}`;
 
     // Everything below this line is system/MYBLIF data (reference,
     // submittedAt, initial professionalStatus) or explicit Stage 1
@@ -319,10 +329,12 @@ export const CustomerRequestProvider = ({
     // a later, separate stage.
     const submitted: CustomerRequest = {
       ...draft,
-      id: createId(),
+      id: persisted?.id ?? createId(),
       reference,
       status: "submitted",
-      submittedAt: Date.now(),
+      submittedAt: persisted?.submittedAt
+        ? new Date(persisted.submittedAt).getTime()
+        : Date.now(),
       professionalStatus: "new_order",
       critical: false,
       appointment: null,
