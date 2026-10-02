@@ -300,7 +300,7 @@ export const QuickRequestExport = (): JSX.Element => {
 
     setOtpVerified(true);
     setOtpOpen(false);
-    navigate("/request-u43-chat");
+    navigate(`/request-u43-chat/${createdRequest.reference}`);
   };
 
   const resendOtp = async () => {
