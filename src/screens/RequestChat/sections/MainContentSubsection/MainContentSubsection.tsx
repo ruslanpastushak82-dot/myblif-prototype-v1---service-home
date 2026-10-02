@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../../../components/ui/button";
 import { Card, CardContent } from "../../../../components/ui/card";
 import { Input } from "../../../../components/ui/input";
@@ -50,6 +50,7 @@ const createLocalId = () =>
 
 export const MainContentSubsection = (): JSX.Element => {
   const navigate = useNavigate();
+  const { reference } = useParams<{ reference: string }>();
   const {
     activeRequest,
     setAppointmentDecision,
@@ -74,21 +75,77 @@ export const MainContentSubsection = (): JSX.Element => {
   }, []);
 
   useEffect(() => {
-    if (!activeRequest?.id) return;
+    if (!reference) return;
+
     const load = async () => {
-      const { data } = await supabase.from("requests").select("*").eq("id", activeRequest.id).maybeSingle();
-      if (data) setBackendRequest({ ...activeRequest, status: data.status, professionalStatus: data.professional_status, appointmentDecision: data.appointment_decision, appointment: data.appointment_date ? { date: data.appointment_date, time: data.appointment_arrival_time ?? "", duration: data.appointment_duration_minutes ? `${data.appointment_duration_minutes} min` : "", price: "" } : null });
-      const { data: chat } = await supabase.from("messages").select("id,text,sender_id,created_at").eq("request_id", activeRequest.id).is("offer_id", null).order("created_at");
+      const { data } = await supabase
+        .from("requests")
+        .select("*")
+        .eq("reference", reference)
+        .maybeSingle();
+
+      if (!data) {
+        setBackendRequest(null);
+        setStoredMessages([]);
+        return;
+      }
+
+      const base = activeRequest?.id === data.id
+        ? activeRequest
+        : emptyCustomerRequest();
+
+      setBackendRequest({
+        ...base,
+        id: data.id,
+        reference: data.reference,
+        status: data.status,
+        submittedAt: new Date(data.submitted_at).getTime(),
+        professionalStatus: data.professional_status,
+        critical: data.critical,
+        serviceType: data.service_type,
+        requestDetails: data.request_details,
+        clientType: data.client_type,
+        urgency: data.urgency ?? "",
+        preferredPeriod: data.preferred_period ?? "",
+        notifications: data.notifications,
+        name: data.customer_name,
+        mobileNumber: data.mobile_number,
+        privateNumber: data.private_number,
+        approximateLocation: data.approximate_location,
+        propertyType: data.property_type ?? "",
+        appointmentDecision: data.appointment_decision,
+        appointment: data.appointment_date
+          ? {
+              date: data.appointment_date,
+              time: data.appointment_arrival_time ?? "",
+              duration: data.appointment_duration_minutes
+                ? `${data.appointment_duration_minutes} min`
+                : "",
+              price: "",
+            }
+          : null,
+        messages: [],
+      });
+
+      const { data: chat } = await supabase
+        .from("messages")
+        .select("id,text,sender_id,created_at")
+        .eq("request_id", data.id)
+        .is("offer_id", null)
+        .order("created_at");
+
       if (chat) setStoredMessages(chat);
     };
+
     void load();
-  }, [activeRequest?.id]);
+  }, [reference, activeRequest?.id]);
 
   // Stage 2B §4 (Appointment safety): while there's no real Appointment yet
   // (request.appointment === null), Confirm/Decline stay disabled and
   // appointmentDecision stays pending -- no fake date/time/duration/price.
   // This is on top of the existing isReadOnly (Completed) gating.
-  const appointmentActionsDisabled = isReadOnly || !request.appointment;
+  const requestIsReadOnly = request.status === "completed";
+  const appointmentActionsDisabled = requestIsReadOnly || !request.appointment;
 
   const [chatDraft, setChatDraft] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<
@@ -109,11 +166,11 @@ export const MainContentSubsection = (): JSX.Element => {
     useSpeechToText(handleDictation);
 
   const canSend =
-    !isReadOnly && (chatDraft.trim() !== "" || pendingAttachments.length > 0);
+    !requestIsReadOnly && (chatDraft.trim() !== "" || pendingAttachments.length > 0);
 
   const handleChatSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (isReadOnly) return;
+    if (requestIsReadOnly) return;
     const trimmed = chatDraft.trim();
     if (!trimmed && pendingAttachments.length === 0) return;
     if (request.id) {
@@ -165,7 +222,7 @@ export const MainContentSubsection = (): JSX.Element => {
     };
 
   const handleRemovePending = (id: string) => {
-    if (isReadOnly) return;
+    if (requestIsReadOnly) return;
     setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -428,7 +485,7 @@ export const MainContentSubsection = (): JSX.Element => {
                       </button>
                       <button
                         type="button"
-                        disabled={isReadOnly}
+                        disabled={requestIsReadOnly}
                         onClick={() => handleRemovePending(item.id)}
                         aria-label={`Remove ${item.file.name}`}
                         className="ml-0.5 leading-none text-[13px] font-bold disabled:opacity-40"
@@ -452,13 +509,13 @@ export const MainContentSubsection = (): JSX.Element => {
                   aria-label="Message"
                   value={chatDraft}
                   onChange={(event) => setChatDraft(event.target.value)}
-                  disabled={isReadOnly}
+                  disabled={requestIsReadOnly}
                   placeholder="Type your message…"
                   className={`h-[46px] flex-1 rounded-[14px] border-2 bg-white text-[13px] ${border} placeholder:text-[#012878]`}
                 />
                 <Button
                   type="button"
-                  disabled={isReadOnly || !micSupported}
+                  disabled={requestIsReadOnly || !micSupported}
                   onClick={startDictation}
                   title={
                     micSupported
@@ -472,7 +529,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 </Button>
                 <Button
                   type="button"
-                  disabled={isReadOnly}
+                  disabled={requestIsReadOnly}
                   onClick={() => photoInputRef.current?.click()}
                   className={`h-[46px] w-[52px] rounded-[10px] border bg-[#eef2f7] p-0 text-base disabled:opacity-40 ${border} ${navy} hover:bg-[#dbe8f9]`}
                   aria-label="Attach photo"
@@ -481,7 +538,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 </Button>
                 <Button
                   type="button"
-                  disabled={isReadOnly}
+                  disabled={requestIsReadOnly}
                   onClick={() => videoInputRef.current?.click()}
                   className={`h-[46px] w-[52px] rounded-[10px] border bg-[#eef2f7] p-0 text-base disabled:opacity-40 ${border} ${navy} hover:bg-[#dbe8f9]`}
                   aria-label="Attach video"
