@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../../components/ui/button";
@@ -22,6 +22,7 @@ import { LocationAutocomplete } from "../../components/LocationAutocomplete";
 import { SERVICE_CATEGORY_TITLES } from "../../data/serviceCategories";
 import { useSpeechToText } from "../../hooks/useSpeechToText";
 import { cn } from "../../lib/utils";
+import { supabase } from "../../lib/supabase";
 import {
   getMediaCounts,
   MEDIA_REJECTION_MESSAGES,
@@ -101,6 +102,14 @@ export const QuickRequestExport = (): JSX.Element => {
 
   const [formError, setFormError] = useState<string[] | null>(null);
   const [mediaReminderVisible, setMediaReminderVisible] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpPhone, setOtpPhone] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   // Security hardening (file limits, owner-approved 2026-09-28): short,
   // specific reason shown when a picked photo/video is rejected -- reset
   // to null as soon as a batch is picked with nothing rejected.
@@ -168,14 +177,90 @@ export const QuickRequestExport = (): JSX.Element => {
       event.target.value = "";
     };
 
-  const proceedToChat = () => {
-    const result = submitRequest();
-    if (result.ok) {
-      navigate("/request-u43-chat");
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendSeconds]);
+
+  const normalizePhoneForOtp = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("+")) {
+      return `+${trimmed.slice(1).replace(/\D/g, "")}`;
     }
+    const digits = trimmed.replace(/\D/g, "");
+    return digits.length === 10 ? `+1${digits}` : `+${digits}`;
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const maskPhone = (phone: string) => {
+    if (phone.length <= 4) return phone;
+    return `${phone.slice(0, 2)} ••• ••• ${phone.slice(-4)}`;
+  };
+
+  const sendOtp = async () => {
+    if (otpSending) return;
+    const phone = normalizePhoneForOtp(request.mobileNumber);
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      setOtpError("Enter a valid mobile number with country code.");
+      return;
+    }
+
+    setOtpSending(true);
+    setOtpError(null);
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    setOtpSending(false);
+
+    if (error) {
+      setOtpError(error.message);
+      return;
+    }
+
+    setOtpPhone(phone);
+    setOtpCode("");
+    setOtpVerified(false);
+    setOtpOpen(true);
+    setResendSeconds(60);
+  };
+
+  const verifyOtp = async () => {
+    if (otpVerifying || otpCode.length !== 6) return;
+    setOtpVerifying(true);
+    setOtpError(null);
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: otpPhone,
+      token: otpCode,
+      type: "sms",
+    });
+
+    setOtpVerifying(false);
+    if (error || !data.session) {
+      setOtpError(error?.message ?? "Phone verification failed.");
+      return;
+    }
+
+    setOtpVerified(true);
+  };
+
+  const resendOtp = async () => {
+    if (resendSeconds > 0 || otpSending) return;
+    setOtpSending(true);
+    setOtpError(null);
+    const { error } = await supabase.auth.signInWithOtp({ phone: otpPhone });
+    setOtpSending(false);
+
+    if (error) {
+      setOtpError(error.message);
+      return;
+    }
+
+    setOtpCode("");
+    setResendSeconds(60);
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
     const missing = getMissingRequiredFields(request);
@@ -192,7 +277,7 @@ export const QuickRequestExport = (): JSX.Element => {
       return;
     }
 
-    proceedToChat();
+    await sendOtp();
   };
 
   const mediaCount = request.photos.length + request.videos.length;
@@ -621,7 +706,7 @@ export const QuickRequestExport = (): JSX.Element => {
                     </Button>
                     <Button
                       type="button"
-                      onClick={proceedToChat}
+                      onClick={() => void sendOtp()}
                       className="h-9 flex-1 rounded-[10px] border-2 border-[#012878] bg-[#fcce5e] text-xs font-bold text-[#012878] hover:bg-[#ffd978]"
                     >
                       Continue without media
@@ -631,9 +716,10 @@ export const QuickRequestExport = (): JSX.Element => {
               )}
               <Button
                 type="submit"
-                className="h-[50px] rounded-[10px] border-2 border-[#012878] bg-[#fcce5e] text-base font-bold text-[#012878] hover:bg-[#ffd978]"
+                disabled={otpSending}
+                className="h-[50px] rounded-[10px] border-2 border-[#012878] bg-[#fcce5e] text-base font-bold text-[#012878] hover:bg-[#ffd978] disabled:opacity-60"
               >
-                Send Request
+                {otpSending ? "Sending..." : "Send Request"}
               </Button>
               <Button
                 type="button"
@@ -646,6 +732,95 @@ export const QuickRequestExport = (): JSX.Element => {
           </section>
         </form>
       </div>
+
+      {otpOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#012878]/35 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="phone-verification-title"
+        >
+          <div className="w-full max-w-[420px] rounded-[16px] border-2 border-[#012878] bg-white p-6 shadow-xl">
+            <h2
+              id="phone-verification-title"
+              className="text-center text-2xl font-bold text-[#012878]"
+            >
+              Verify your phone
+            </h2>
+            <p className="mt-2 text-center text-sm text-[#4c515b]">
+              Enter the 6-digit code sent to {maskPhone(otpPhone)}
+            </p>
+
+            {!otpVerified ? (
+              <>
+                <Input
+                  aria-label="6-digit verification code"
+                  value={otpCode}
+                  onChange={(event) =>
+                    setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  placeholder="000000"
+                  className="mt-5 h-14 rounded-[10px] border-2 border-[#012878] bg-white text-center text-2xl tracking-[0.45em] text-[#012878]"
+                />
+
+                {otpError && (
+                  <p className="mt-3 text-center text-xs font-bold text-[#c0392b]">
+                    {otpError}
+                  </p>
+                )}
+
+                <Button
+                  type="button"
+                  onClick={() => void verifyOtp()}
+                  disabled={otpVerifying || otpCode.length !== 6}
+                  className="mt-5 h-12 w-full rounded-[10px] border-2 border-[#012878] bg-[#fcce5e] font-bold text-[#012878] hover:bg-[#ffd978] disabled:opacity-60"
+                >
+                  {otpVerifying ? "Verifying..." : "Verify & Submit"}
+                </Button>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void resendOtp()}
+                    disabled={resendSeconds > 0 || otpSending}
+                    className="h-10 flex-1 rounded-[10px] border-2 border-[#012878] text-sm text-[#012878]"
+                  >
+                    {resendSeconds > 0
+                      ? `Resend code (${resendSeconds}s)`
+                      : otpSending
+                        ? "Sending..."
+                        : "Resend code"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setOtpOpen(false);
+                      setOtpCode("");
+                      setOtpError(null);
+                    }}
+                    className="h-10 flex-1 rounded-[10px] border-2 border-[#012878] text-sm text-[#012878]"
+                  >
+                    Change phone
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-5 rounded-[10px] border-2 border-[#012878] bg-[#eef7ee] p-4 text-center text-sm text-[#012878]">
+                <p className="font-bold">Phone verified.</p>
+                <p className="mt-1">
+                  Your request has not been submitted yet. Request creation is
+                  connected in the next step.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 };
