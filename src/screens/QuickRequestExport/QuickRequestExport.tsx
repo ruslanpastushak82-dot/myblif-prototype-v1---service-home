@@ -126,6 +126,18 @@ export const QuickRequestExport = (): JSX.Element => {
   // and clears once instead of flickering as the customer types.
   const isMissing = (label: string) => formError?.includes(label) ?? false;
 
+  const updateDraftAndClearError = (
+    patch: Parameters<typeof updateDraft>[0],
+    label: string,
+  ) => {
+    updateDraft(patch);
+    setFormError((current) => {
+      if (!current?.includes(label)) return current;
+      const next = current.filter((item) => item !== label);
+      return next.length > 0 ? next : null;
+    });
+  };
+
   const handleDictation = (transcript: string) => {
     updateDraft({
       requestDetails: request.requestDetails
@@ -328,7 +340,9 @@ export const QuickRequestExport = (): JSX.Element => {
               */}
               <Select
                 value={request.serviceType || undefined}
-                onValueChange={(value) => updateDraft({ serviceType: value })}
+                onValueChange={(value) =>
+                  updateDraftAndClearError({ serviceType: value }, "Service Type")
+                }
               >
                 <SelectTrigger
                   className={cn(
@@ -559,7 +573,9 @@ export const QuickRequestExport = (): JSX.Element => {
               <OptionGroup
                 options={clientTypes}
                 value={request.clientType}
-                onChange={(value) => updateDraft({ clientType: value })}
+                onChange={(value) =>
+                  updateDraftAndClearError({ clientType: value }, "Client Type")
+                }
                 error={isMissing("Client Type")}
               />
             </fieldset>
@@ -591,7 +607,9 @@ export const QuickRequestExport = (): JSX.Element => {
               <OptionGroup
                 options={notificationOptions}
                 value={request.notifications}
-                onChange={(value) => updateDraft({ notifications: value })}
+                onChange={(value) =>
+                  updateDraftAndClearError({ notifications: value }, "Notifications")
+                }
                 widths="w-24"
                 error={isMissing("Notifications")}
               />
@@ -604,7 +622,9 @@ export const QuickRequestExport = (): JSX.Element => {
                 <Input
                   aria-label="Name"
                   value={request.name}
-                  onChange={(event) => updateDraft({ name: event.target.value })}
+                  onChange={(event) =>
+                    updateDraftAndClearError({ name: event.target.value }, "Name")
+                  }
                   placeholder="Name"
                   className={cn(
                     controlClass,
@@ -615,7 +635,10 @@ export const QuickRequestExport = (): JSX.Element => {
                   aria-label="Mobile Number"
                   value={request.mobileNumber}
                   onChange={(event) =>
-                    updateDraft({ mobileNumber: event.target.value })
+                    updateDraftAndClearError(
+                      { mobileNumber: event.target.value },
+                      "Mobile Number",
+                    )
                   }
                   placeholder="Mobile Number"
                   className={cn(
@@ -667,7 +690,12 @@ export const QuickRequestExport = (): JSX.Element => {
               */}
               <LocationAutocomplete
                 value={request.approximateLocation}
-                onChange={(value) => updateDraft({ approximateLocation: value })}
+                onChange={(value) =>
+                  updateDraftAndClearError(
+                    { approximateLocation: value },
+                    "Approximate Location",
+                  )
+                }
                 error={isMissing("Approximate Location")}
               />
             </fieldset>
