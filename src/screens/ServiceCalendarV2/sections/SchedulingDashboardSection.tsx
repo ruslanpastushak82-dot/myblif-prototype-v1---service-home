@@ -139,7 +139,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
   const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    void supabase.from("requests").select("id,reference,service_type,appointment_date,appointment_arrival_time,status").eq("appointment_decision", "confirmed").eq("professional_status", "approved").not("appointment_date", "is", null).then(({ data, error }) => {
+    void supabase.from("requests").select("id,reference,service_type,appointment_date,appointment_arrival_time,status").eq("appointment_decision", "confirmed").eq("professional_status", "approved").gte("appointment_date", "2026-09-21").lte("appointment_date", "2026-09-27").then(({ data, error }) => {
       if (!error && data) setConfirmedEvents(data);
     });
   }, []);
@@ -266,8 +266,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
 
                 {confirmedEvents
                   .filter((event) => {
-                    const d = new Date(event.appointment_date + "T12:00:00");
-                    return d.getDate().toString() === item.date;
+                    return event.appointment_date === `2026-09-${item.date}`;
                   })
                   .map((event) => (
                     <article
