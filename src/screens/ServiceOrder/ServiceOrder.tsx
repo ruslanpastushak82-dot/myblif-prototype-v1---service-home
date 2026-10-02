@@ -44,7 +44,35 @@ export const ServiceOrder = (): JSX.Element => {
   // same untouched mock rather than crashing.
   const { reference } = useParams<{ reference?: string }>();
   const { getRequestByReference } = useCustomerRequest();
-  const customerRequest = reference ? getRequestByReference(reference) : undefined;
+  const contextRequest = reference ? getRequestByReference(reference) : undefined;
+  const [backendRequest, setBackendRequest] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    if (!reference || contextRequest) return;
+    let active = true;
+    void supabase.from("requests").select("*").eq("reference", reference).maybeSingle().then(({ data, error }) => {
+      if (active && !error) setBackendRequest(data);
+    });
+    return () => { active = false; };
+  }, [reference, contextRequest]);
+
+  const customerRequest = contextRequest ?? (backendRequest ? {
+    id: backendRequest.id,
+    reference: backendRequest.reference,
+    status: backendRequest.status,
+    submittedAt: new Date(backendRequest.submitted_at).getTime(),
+    professionalStatus: backendRequest.professional_status,
+    critical: backendRequest.critical,
+    serviceType: backendRequest.service_type,
+    requestDetails: backendRequest.request_details,
+    photos: [], videos: [], clientType: backendRequest.client_type,
+    urgency: backendRequest.urgency ?? "", preferredPeriod: backendRequest.preferred_period ?? "",
+    notifications: backendRequest.notifications, name: backendRequest.customer_name,
+    mobileNumber: backendRequest.mobile_number, privateNumber: backendRequest.private_number,
+    approximateLocation: backendRequest.approximate_location, propertyType: backendRequest.property_type ?? "",
+    appointment: backendRequest.appointment_date ? { date: backendRequest.appointment_date, time: backendRequest.appointment_arrival_time ?? "", duration: backendRequest.appointment_duration_minutes ? `${backendRequest.appointment_duration_minutes} min` : "", price: "" } : null,
+    appointmentDecision: backendRequest.appointment_decision, messages: [],
+  } : undefined);
 
   const workOrder = customerRequest
     ? {
