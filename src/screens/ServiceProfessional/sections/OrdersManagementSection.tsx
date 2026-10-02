@@ -273,11 +273,11 @@ export const OrdersManagementSection = (): JSX.Element => {
         className={`${panel} overflow-hidden`}
         style={{ height: `${CARD_HEIGHT}px` }}
       >
-        <CardContent className="p-3">
+        <CardContent className="flex h-full min-h-0 flex-col p-3">
           <div className="mb-2 flex items-center gap-2">
             <h1 className="text-xl font-normal">Orders</h1>
           </div>
-          <div className="overflow-x-auto">
+          <div className="min-h-0 flex-1 overflow-auto">
             <div className="min-w-[1000px]">
               <div
                 className="grid grid-cols-[1.25fr_1fr_1fr_2fr_1.2fr_0.8fr_24px] gap-5 px-3 pb-3 text-xs text-slate-500 [font-family:'Inter',Helvetica]"
