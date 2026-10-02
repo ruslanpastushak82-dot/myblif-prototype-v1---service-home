@@ -247,13 +247,60 @@ export const QuickRequestExport = (): JSX.Element => {
       type: "sms",
     });
 
-    setOtpVerifying(false);
     if (error || !data.session) {
+      setOtpVerifying(false);
       setOtpError(error?.message ?? "Phone verification failed.");
       return;
     }
 
+    const { error: profileError } = await supabase.rpc(
+      "ensure_service_customer_profile",
+      { p_display_name: request.name },
+    );
+
+    if (profileError) {
+      setOtpVerifying(false);
+      setOtpError(profileError.message);
+      return;
+    }
+
+    const { data: createdRequest, error: requestError } = await supabase
+      .rpc("create_authenticated_service_request", {
+        p_service_type: request.serviceType,
+        p_request_details: request.requestDetails,
+        p_client_type: request.clientType,
+        p_notifications: request.notifications,
+        p_customer_name: request.name,
+        p_mobile_number: otpPhone,
+        p_approximate_location: request.approximateLocation,
+        p_urgency: request.urgency || null,
+        p_preferred_period: request.preferredPeriod || null,
+        p_private_number: request.privateNumber,
+        p_property_type: request.propertyType || null,
+      })
+      .single();
+
+    if (requestError || !createdRequest) {
+      setOtpVerifying(false);
+      setOtpError(requestError?.message ?? "Request could not be submitted.");
+      return;
+    }
+
+    const result = submitRequest({
+      id: createdRequest.id,
+      reference: createdRequest.reference,
+      submittedAt: createdRequest.submitted_at,
+    });
+
+    setOtpVerifying(false);
+    if (!result.ok) {
+      setOtpError("Request could not be opened.");
+      return;
+    }
+
     setOtpVerified(true);
+    setOtpOpen(false);
+    navigate("/request-u43-chat");
   };
 
   const resendOtp = async () => {
