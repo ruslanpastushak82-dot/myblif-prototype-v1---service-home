@@ -1,4 +1,5 @@
 import { Outlet, createBrowserRouter, RouterProvider } from "react-router-dom";
+import { ProfessionalAuthGate } from "./components/ProfessionalAuthGate/ProfessionalAuthGate";
 import { QuickRequestExport } from "./screens/QuickRequestExport";
 import { RequestChat } from "./screens/RequestChat/RequestChat";
 import { ServiceHome } from "./screens/ServiceHome";
@@ -43,7 +44,11 @@ const router = createBrowserRouter([
       },
       {
         path: "/service-professional",
-        element: <ServiceProfessional />,
+        element: (
+          <ProfessionalAuthGate>
+            <ServiceProfessional />
+          </ProfessionalAuthGate>
+        ),
       },
       {
         // Existing, unparameterized /service-order is kept exactly as it
