@@ -307,7 +307,16 @@ export const OrdersManagementSection = (): JSX.Element => {
                 {rows.map((order) => (
                   <article
                     key={order.key}
-                    className="grid grid-cols-[1.25fr_1fr_1fr_2fr_1.2fr_0.8fr_24px] items-center gap-5 rounded-xl border-2 border-[#012878] bg-white px-3 text-sm text-slate-800 [font-family:'Inter',Helvetica]"
+                    onClick={order.onOpen}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        order.onOpen();
+                      }
+                    }}
+                    className="grid cursor-pointer grid-cols-[1.25fr_1fr_1fr_2fr_1.2fr_0.8fr_24px] items-center gap-5 rounded-xl border-2 border-[#012878] bg-white px-3 text-sm text-slate-800 [font-family:'Inter',Helvetica]"
                     style={{ height: `${ROW_HEIGHT}px` }}
                   >
                     <div className="font-normal text-[#012878]">
@@ -321,7 +330,10 @@ export const OrdersManagementSection = (): JSX.Element => {
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={order.onOpen}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        order.onOpen();
+                      }}
                       className="h-auto justify-start p-0 text-[#308cf9] hover:bg-transparent hover:text-[#308cf9]"
                       aria-label={`Open order ${order.number}`}
                     >
