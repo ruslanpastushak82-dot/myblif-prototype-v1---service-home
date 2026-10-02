@@ -64,6 +64,13 @@ export const TechnicianChatSection = ({
   // the mock/no-order fallback keeps the exact Stage 1 inert behaviour.
   const [draft, setDraft] = useState("");
   const [storedMessages, setStoredMessages] = useState<Array<{ id: string; text: string; sender_id: string }>>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     if (!customerRequest?.id) return;
@@ -108,7 +115,9 @@ export const TechnicianChatSection = ({
     ? storedMessages.map((message) => ({
         id: message.id,
         text: message.text,
-        className: "w-full max-w-[520px] self-end bg-[#eaeff4]",
+        className: message.sender_id === currentUserId
+          ? "w-full max-w-[520px] self-end bg-[#eaeff4]"
+          : "w-full max-w-[440px] self-start bg-[#dbe8f9]",
       }))
     : customerRequest
     ? customerRequest.messages.map((message) => ({
