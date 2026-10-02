@@ -39,7 +39,7 @@ const router = createBrowserRouter([
         element: <QuickRequestExport />,
       },
       {
-        path: "/request-u43-chat",
+        path: "/request-u43-chat/:reference",
         element: <RequestChat />,
       },
       {
