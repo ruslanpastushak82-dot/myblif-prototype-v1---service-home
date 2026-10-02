@@ -120,7 +120,36 @@ export const OrdersManagementSection = (): JSX.Element => {
   const [selectedTab, setSelectedTab] = useState("All Orders");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const navigate = useNavigate();
-  const [backendOrders, setBackendOrders] = useState<Array<{\n    id: string;\n    reference: string;\n    service_type: string;\n    professional_status: ProfessionalWorkflowStatus;\n  }>>([]);\n\n  useEffect(() => {\n    let active = true;\n\n    const loadNewOrders = async () => {\n      const { data, error } = await supabase.rpc("get_service_new_orders");\n      if (!active || error || !data) return;\n\n      setBackendOrders(\n        data.map((item) => ({\n          id: item.id,\n          reference: item.reference,\n          service_type: item.service_type,\n          professional_status: item.professional_status,\n        })),\n      );\n    };\n\n    void loadNewOrders();\n\n    return () => {\n      active = false;\n    };\n  }, []);
+  const [backendOrders, setBackendOrders] = useState<Array<{
+    id: string;
+    reference: string;
+    service_type: string;
+    professional_status: ProfessionalWorkflowStatus;
+  }>>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadNewOrders = async () => {
+      const { data, error } = await supabase.rpc("get_service_new_orders");
+      if (!active || error || !data) return;
+
+      setBackendOrders(
+        data.map((item) => ({
+          id: item.id,
+          reference: item.reference,
+          service_type: item.service_type,
+          professional_status: item.professional_status,
+        })),
+      );
+    };
+
+    void loadNewOrders();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Real Customer-submitted orders, newest last (submission order) — kept
   // append-only after the 5 existing mock rows, per Stage 2A §2 ("не
@@ -130,12 +159,12 @@ export const OrdersManagementSection = (): JSX.Element => {
   // Estimate at this stage), so they're left as "—" rather than invented.
   const realOrders: OrderRow[] = useMemo(
     () =>
-      requests.map((item) => ({
+      backendOrders.map((item) => ({
         key: item.reference ?? item.id ?? "unknown",
         number: item.reference ?? "—",
-        service: item.serviceType,
-        stage: item.professionalStatus
-          ? professionalStatusLabels[item.professionalStatus]
+        service: item.service_type,
+        stage: item.professional_status
+          ? professionalStatusLabels[item.professional_status]
           : "—",
         nextAction: "—",
         deadline: "—",
