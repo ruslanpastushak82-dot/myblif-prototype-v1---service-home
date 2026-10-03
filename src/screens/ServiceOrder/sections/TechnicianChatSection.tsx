@@ -111,7 +111,10 @@ export const TechnicianChatSection = ({
     setDraft("");
   };
 
-  const messages = customerRequest?.id && storedMessages.length > 0
+  // A persisted Request owns its own chat. An empty database result is a
+  // genuinely new conversation and must stay empty; never fall back to
+  // CustomerRequestContext messages from another/mock order.
+  const messages = customerRequest?.id
     ? storedMessages.map((message) => ({
         id: message.id,
         text: message.text,
