@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabase";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -165,6 +166,23 @@ function TimeSummary({
 
 export const SchedulingDashboardSection = (): JSX.Element => {
   const [selectedView, setSelectedView] = useState("Day");
+  const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
+      if (!error && data) {
+        setConfirmedEvents(
+          data.filter((item) => item.appointment_date === "2026-09-22"),
+        );
+      }
+    });
+  }, []);
+
+  const realTimelineEvents: TimelineEvent[] = confirmedEvents.map((item) => ({
+    time: item.appointment_arrival_time?.slice(0, 5) ?? "",
+    title: `${item.service_type} · ${item.reference}`,
+    subtitle: `${item.appointment_arrival_time?.slice(0, 5) ?? ""} · Approved`,
+  }));
 
   return (
     <main className="mx-auto flex w-full max-w-[1296px] flex-col gap-2 px-1 py-1 font-['Inter',Helvetica] text-[#012878]">
@@ -276,15 +294,21 @@ export const SchedulingDashboardSection = (): JSX.Element => {
                 title={period.title}
                 times={period.times}
                 events={
-                  period.title === "MORNING"
-                    ? [
-                        {
-                          time: "09:00",
-                          title: "Plumbing · MYB-S26-328641",
-                          subtitle: "09:30 · Rework",
-                        },
-                      ]
-                    : undefined
+                  [
+                    ...(period.title === "MORNING"
+                      ? [
+                          {
+                            time: "09:00",
+                            title: "Plumbing · MYB-S26-328641",
+                            subtitle: "09:30 · Rework",
+                          },
+                        ]
+                      : []),
+                    ...realTimelineEvents.filter((event) => {
+                      const hour = Number(event.time.slice(0, 2));
+                      return period.title === "MORNING" ? hour <= 12 : hour >= 13;
+                    }),
+                  ]
                 }
               />
             ))}
