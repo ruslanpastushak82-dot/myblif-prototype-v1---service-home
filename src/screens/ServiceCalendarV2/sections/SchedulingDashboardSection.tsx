@@ -318,7 +318,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
 
                 {confirmedEvents
                   .filter((event) => {
-                    return event.appointment_date === `2026-09-${item.date}`;
+                    const dayIndex = liveDays.findIndex((day) => day.date === item.date);\n                    return dayIndex >= 0 && event.appointment_date === toLocalDateKey(addDays(weekStart, dayIndex));
                   })
                   .map((event) => (
                     <article
