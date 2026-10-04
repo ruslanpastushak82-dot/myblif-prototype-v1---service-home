@@ -139,8 +139,16 @@ export const SchedulingDashboardSection = (): JSX.Element => {
   const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
 
   useEffect(() => {
-    void supabase.from("requests").select("id,reference,service_type,appointment_date,appointment_arrival_time,status").eq("appointment_decision", "confirmed").eq("professional_status", "approved").gte("appointment_date", "2026-09-21").lte("appointment_date", "2026-09-27").then(({ data, error }) => {
-      if (!error && data) setConfirmedEvents(data);
+    void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
+      if (!error && data) {
+        setConfirmedEvents(
+          data.filter(
+            (item) =>
+              item.appointment_date >= "2026-09-21" &&
+              item.appointment_date <= "2026-09-27",
+          ),
+        );
+      }
     });
   }, []);
 
