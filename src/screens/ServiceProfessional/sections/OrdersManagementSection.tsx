@@ -175,8 +175,14 @@ export const OrdersManagementSection = (): JSX.Element => {
     () =>
       backendOrders
         .filter((item) => {
+          if (selectedTab === "Active" && item.professional_status === "completed") {
+            return false;
+          }
+          if (selectedTab === "Completed" && item.professional_status !== "completed") {
+            return false;
+          }
           if (!operatingFilter) return true;
-          if (operatingFilter === "critical") return Boolean((item as any).critical);
+          if (operatingFilter === "critical") return item.critical;
           const statusByFilter: Record<Exclude<OperatingFilterKey, "critical">, ProfessionalWorkflowStatus> = {
             newOrders: "new_order",
             underReview: "under_review",
@@ -201,7 +207,7 @@ export const OrdersManagementSection = (): JSX.Element => {
           navigate(`/service-order/${item.reference}`);
         },
       })),
-    [backendOrders, navigate, operatingFilter],
+    [backendOrders, navigate, operatingFilter, selectedTab],
   );
 
   const rows: OrderRow[] = [
