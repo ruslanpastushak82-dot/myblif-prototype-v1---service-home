@@ -105,8 +105,6 @@ const professionalStatusLabels: Record<ProfessionalWorkflowStatus, string> = {
   completed: "Completed",
 };
 
-const filterOptions = ["Order Number", "Address", "Client", "Stage", "Sort"];
-
 // Fixed geometry for the Orders content card at 1440x1024:
 // Card bottom is targeted to align with the Sidebar/Profile bottom edge
 // (measured nav bottom at this viewport), and row height is sized so the
@@ -119,7 +117,11 @@ const ROW_GAP = 4; // px
 
 export const OrdersManagementSection = (): JSX.Element => {
   const [selectedTab, setSelectedTab] = useState("All Orders");
-  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [orderQuery, setOrderQuery] = useState("");
+  const [addressFilter, setAddressFilter] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<ProfessionalWorkflowStatus | null>(null);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [operatingFilter, setOperatingFilter] = useState<OperatingFilterKey | null>(null);
   const navigate = useNavigate();
   const [backendOrders, setBackendOrders] = useState<Array<{
@@ -218,44 +220,39 @@ export const OrdersManagementSection = (): JSX.Element => {
     [backendOrders, navigate, operatingFilter, selectedTab],
   );
 
-  const sortedRealOrders = useMemo(() => {
-    const items = [...realOrders];
-    if (selectedFilter === "Order Number") {
-      return items.sort((a, b) => a.number.localeCompare(b.number));
-    }
-    if (selectedFilter === "Address") {
-      return items.sort((a, b) => {
-        const aa = backendOrders.find((item) => item.reference === a.number)?.approximate_location ?? "";
-        const bb = backendOrders.find((item) => item.reference === b.number)?.approximate_location ?? "";
-        return aa.localeCompare(bb);
-      });
-    }
-    if (selectedFilter === "Client") {
-      return items.sort((a, b) => {
-        const aa = backendOrders.find((item) => item.reference === a.number)?.client_type ?? "";
-        const bb = backendOrders.find((item) => item.reference === b.number)?.client_type ?? "";
-        return aa.localeCompare(bb);
-      });
-    }
-    if (selectedFilter === "Stage") {
-      return items.sort((a, b) => a.stage.localeCompare(b.stage));
-    }
-    if (selectedFilter === "Sort") {
-      return items.sort((a, b) => {
-        const aa = backendOrders.find((item) => item.reference === a.number)?.submitted_at ?? "";
-        const bb = backendOrders.find((item) => item.reference === b.number)?.submitted_at ?? "";
-        return bb.localeCompare(aa);
-      });
-    }
-    return items;
-  }, [realOrders, backendOrders, selectedFilter]);
+  const filteredRealOrders = useMemo(() => {
+    const query = orderQuery.trim().toLowerCase();
+    const filtered = realOrders.filter((order) => {
+      const source = backendOrders.find((item) => item.reference === order.number);
+      if (!source) return false;
+      if (query && !order.number.toLowerCase().includes(query)) return false;
+      if (addressFilter && source.approximate_location !== addressFilter) return false;
+      if (clientFilter && source.client_type !== clientFilter) return false;
+      if (stageFilter && source.professional_status !== stageFilter) return false;
+      return true;
+    });
+    return filtered.sort((a, b) => {
+      const aa = backendOrders.find((item) => item.reference === a.number)?.submitted_at ?? "";
+      const bb = backendOrders.find((item) => item.reference === b.number)?.submitted_at ?? "";
+      return sortOrder === "newest" ? bb.localeCompare(aa) : aa.localeCompare(bb);
+    });
+  }, [realOrders, backendOrders, orderQuery, addressFilter, clientFilter, stageFilter, sortOrder]);
+
+  const addressOptions = useMemo(
+    () => Array.from(new Set(backendOrders.map((item) => item.approximate_location).filter(Boolean))) as string[],
+    [backendOrders],
+  );
+  const clientOptions = useMemo(
+    () => Array.from(new Set(backendOrders.map((item) => item.client_type).filter(Boolean))) as string[],
+    [backendOrders],
+  );
 
   const rows: OrderRow[] = [
     ...mockOrders.map((order) => ({
       ...order,
       onOpen: () => navigate("/service-order"),
     })),
-    ...sortedRealOrders,
+    ...filteredRealOrders,
   ];
 
   return (
@@ -290,21 +287,53 @@ export const OrdersManagementSection = (): JSX.Element => {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          {filterOptions.map((filter) => (
-            <DropdownMenu key={filter}>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className={controlClass}>
-                  <span className="truncate px-1">{filter}</span>
-                  <ChevronDownIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onSelect={() => setSelectedFilter(filter)}>
-                  {filter}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" className={controlClass}>
+                <span className="truncate px-1">Order Number</span>
+                <ChevronDownIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="p-2">
+              <input
+                value={orderQuery}
+                onChange={(event) => setOrderQuery(event.target.value)}
+                placeholder="MYB-S26-..."
+                className="h-9 w-48 rounded-md border px-2 text-sm"
+                aria-label="Filter by order number"
+              />
+              {orderQuery && <DropdownMenuItem onSelect={() => setOrderQuery("")}>Clear</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Address</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setAddressFilter(null)}>All</DropdownMenuItem>
+              {addressOptions.map((value) => <DropdownMenuItem key={value} onSelect={() => setAddressFilter(value)}>{value}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Client</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setClientFilter(null)}>All</DropdownMenuItem>
+              {clientOptions.map((value) => <DropdownMenuItem key={value} onSelect={() => setClientFilter(value)}>{value}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Stage</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setStageFilter(null)}>All</DropdownMenuItem>
+              {(Object.entries(professionalStatusLabels) as [ProfessionalWorkflowStatus, string][]).map(([value, label]) => <DropdownMenuItem key={value} onSelect={() => setStageFilter(value)}>{label}</DropdownMenuItem>)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Sort</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setSortOrder("newest")}>Newest</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSortOrder("oldest")}>Oldest</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
         </div>
         <Button
           type="button"
