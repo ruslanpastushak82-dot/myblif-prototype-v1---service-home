@@ -1,5 +1,6 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabase";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -171,11 +172,14 @@ function TimeSummary({
 function CalendarCell({
   date,
   column,
+  realEvents = [],
 }: {
   date: number | null;
   column: number;
+  realEvents?: Array<{ title: string; reference: string; status: string }>;
 }) {
-  const event = date ? calendarEvents[date] : undefined;
+  const mockEvent = date ? calendarEvents[date] : undefined;
+  const event = realEvents[0] ?? mockEvent;
 
   return (
     <div
@@ -206,6 +210,21 @@ function CalendarCell({
 export const SchedulingDashboardSection = (): JSX.Element => {
   const [selectedView, setSelectedView] = useState("Month");
   const [selectedAvailability, setSelectedAvailability] = useState("Free Day");
+  const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
+      if (!error && data) {
+        setConfirmedEvents(
+          data.filter(
+            (item) =>
+              item.appointment_date >= "2026-09-01" &&
+              item.appointment_date <= "2026-09-30",
+          ),
+        );
+      }
+    });
+  }, []);
 
   return (
     <main className="mx-auto flex w-full max-w-[1296px] flex-col gap-2 px-1 py-1 text-[#012878]">
@@ -325,6 +344,20 @@ export const SchedulingDashboardSection = (): JSX.Element => {
                   key={`${date ?? "empty"}-${index}`}
                   date={date}
                   column={index % 7}
+                  realEvents={
+                    date
+                      ? confirmedEvents
+                          .filter(
+                            (item) =>
+                              Number(item.appointment_date.slice(-2)) === date,
+                          )
+                          .map((item) => ({
+                            title: item.service_type,
+                            reference: item.reference,
+                            status: item.appointment_arrival_time?.slice(0, 5) ?? "",
+                          }))
+                      : []
+                  }
                 />
               ))}
             </div>
