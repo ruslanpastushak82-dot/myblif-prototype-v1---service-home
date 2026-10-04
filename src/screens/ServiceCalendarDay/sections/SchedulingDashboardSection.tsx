@@ -171,14 +171,15 @@ export const SchedulingDashboardSection = (): JSX.Element => {
   useEffect(() => {
     void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
       if (!error && data) {
-        setConfirmedEvents(
-          data.filter((item) => item.appointment_date === "2026-09-22"),
-        );
+        setConfirmedEvents(data);
       }
     });
   }, []);
 
-  const realTimelineEvents: TimelineEvent[] = confirmedEvents.map((item) => ({
+  const dayEvents = confirmedEvents.filter(
+    (item) => item.appointment_date === "2026-09-22",
+  );
+  const realTimelineEvents: TimelineEvent[] = dayEvents.map((item) => ({
     time: item.appointment_arrival_time?.slice(0, 5) ?? "",
     title: `${item.service_type} · ${item.reference}`,
     subtitle: `${item.appointment_arrival_time?.slice(0, 5) ?? ""} · Approved`,
