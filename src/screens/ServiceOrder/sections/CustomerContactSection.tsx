@@ -9,8 +9,10 @@ const mockCustomerDetails = [
 
 export const CustomerContactSection = ({
   customerRequest,
+  isPreAccept = false,
 }: {
   customerRequest?: CustomerRequest;
+  isPreAccept?: boolean;
 }): JSX.Element => {
   // Relabeled to "Location" (not "Address") for a real order: the value
   // is Approximate Location exactly as the Customer entered it (city/area
@@ -19,7 +21,12 @@ export const CustomerContactSection = ({
   // precise. This is a label-text correction, not a geometry change; the
   // row structure/layout is identical to Stage 1.
   const customerDetails = customerRequest
-    ? [
+    ? isPreAccept
+      ? [
+          { label: "Location", value: customerRequest.approximateLocation },
+          { label: "Contact", value: "Available after acceptance" },
+        ]
+      : [
         { label: "Location", value: customerRequest.approximateLocation },
         { label: "Name", value: customerRequest.name },
         {
