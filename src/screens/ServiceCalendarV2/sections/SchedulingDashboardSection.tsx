@@ -1,6 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { addDays, formatWeekTitle, startOfWeekMonday, toLocalDateKey } from "../../../lib/calendarDate";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -137,6 +138,17 @@ function TimeSummary({
 export const SchedulingDashboardSection = (): JSX.Element => {
   const [view, setView] = useState("Week");
   const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+  const today = new Date();
+  const weekStart = startOfWeekMonday(today);
+  const weekEnd = addDays(weekStart, 6);
+  const weekTitle = formatWeekTitle(weekStart);
+  const liveDays = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    return {
+      day: date.toLocaleDateString("en-CA", { weekday: "short" }),
+      date: String(date.getDate()),
+    };
+  });
 
   useEffect(() => {
     void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
@@ -144,13 +156,13 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         setConfirmedEvents(
           data.filter(
             (item) =>
-              item.appointment_date >= "2026-09-21" &&
-              item.appointment_date <= "2026-09-27",
+              item.appointment_date >= toLocalDateKey(weekStart) &&
+              item.appointment_date <= toLocalDateKey(weekEnd),
           ),
         );
       }
     });
-  }, []);
+  }, [weekStart.getTime()]);
 
   const weekEvents = confirmedEvents;
   const totalPlannedMinutes = weekEvents.reduce(
@@ -173,7 +185,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       width: `${percent}%`,
     };
   });
-  const liveOccupancyDays = ["21", "22", "23", "24", "25", "26", "27"].map((date) => {
+  const liveOccupancyDays = liveDays.map(({ date }) => {
     const items = weekEvents.filter((item) => item.appointment_date.slice(-2) === date);
     const busy = (startHour: number, endHour: number) =>
       items.some((item) => {
@@ -254,7 +266,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
               <ChevronLeftIcon className="h-4 w-4" />
             </Button>
             <span className="text-sm font-normal sm:text-xl">
-              Sep 21–27, 2026
+              {weekTitle}
             </span>
             <Button
               type="button"
@@ -270,11 +282,11 @@ export const SchedulingDashboardSection = (): JSX.Element => {
               variant="ghost"
               className="h-8 px-2 text-[10px] font-medium text-[#012878] sm:h-11 sm:text-sm"
             >
-              Today 21
+              Today {today.getDate()}
             </Button>
           </div>
           <div className="grid min-w-[700px] grid-cols-7 overflow-hidden border border-[#012878]">
-            {days.map((item, index) => (
+            {liveDays.map((item, index) => (
               <div
                 key={item.date}
                 className={`relative min-h-[250px] border-r border-[#012878] last:border-r-0 ${
@@ -341,7 +353,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         <CardContent className="grid grid-cols-[1fr_220px] gap-2 p-1.5">
           <section>
             <div className="px-1 text-[15px]">
-              Occupancy — Sep 21–27, 2026
+              Occupancy — {weekTitle}
             </div>
             <div className="mt-1 grid grid-cols-[135px_repeat(7,minmax(36px,1fr))] items-center gap-2 text-[9.5px]">
               <div className="flex gap-3">
@@ -383,12 +395,12 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         </CardContent>
       </Card>
       <TimeSummary
-        title="Planned Time — Sep 21–27, 2026"
+        title="Planned Time — {weekTitle}"
         total={`Total: ${(totalPlannedMinutes / 60).toFixed(totalPlannedMinutes % 60 === 0 ? 0 : 1)} h`}
         items={plannedByCategory as typeof plannedItems}
       />
       <TimeSummary
-        title="Actual Time — Sep 21–27, 2026"
+        title="Actual Time — {weekTitle}"
         total="Total: 0 h"
         items={actualItems}
       />
