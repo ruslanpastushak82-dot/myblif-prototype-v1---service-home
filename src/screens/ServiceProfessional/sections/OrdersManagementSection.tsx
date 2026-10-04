@@ -157,7 +157,9 @@ export const OrdersManagementSection = (): JSX.Element => {
 
   useEffect(() => {
     const handleOperatingFilter = (event: Event) => {
-      setOperatingFilter((event as CustomEvent<OperatingFilterKey | null>).detail);
+      const next = (event as CustomEvent<OperatingFilterKey | null>).detail;
+      setOperatingFilter(next);
+      if (next) setSelectedTab("All Orders");
     };
     window.addEventListener("myblif:operating-filter", handleOperatingFilter);
     return () => {
