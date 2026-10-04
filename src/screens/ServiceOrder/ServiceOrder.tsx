@@ -190,7 +190,7 @@ export const ServiceOrder = (): JSX.Element => {
           <TechnicianChatSection customerRequest={customerRequest} isPreAccept={isPreAccept} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
-          <CustomerContactSection customerRequest={customerRequest} />
+          <CustomerContactSection customerRequest={customerRequest} isPreAccept={isPreAccept} />
           <EstimateManagementSection isPreAccept={isPreAccept} />
           <ReminderSchedulingSection />
         </div>
