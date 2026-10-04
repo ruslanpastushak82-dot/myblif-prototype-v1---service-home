@@ -51,6 +51,7 @@ export const ServiceOrder = (): JSX.Element => {
   const [backendRequest, setBackendRequest] = useState<Record<string, any> | null>(null);
   const [isPreAccept, setIsPreAccept] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isUpdatingWork, setIsUpdatingWork] = useState(false);
 
   const loadBackendRequest = useCallback(async () => {
     if (!reference) return;
@@ -105,6 +106,34 @@ export const ServiceOrder = (): JSX.Element => {
     setIsAccepting(false);
   };
 
+  const handleStartWork = async () => {
+    if (!backendRequest?.id || isUpdatingWork) return;
+    setIsUpdatingWork(true);
+    const { error } = await supabase.rpc("start_service_work", {
+      p_request_id: backendRequest.id,
+    });
+    if (!error) await loadBackendRequest();
+    setIsUpdatingWork(false);
+  };
+
+  const handleFinishWork = async () => {
+    if (!backendRequest?.id || isUpdatingWork) return;
+    if (!window.confirm("Complete this job?")) return;
+    setIsUpdatingWork(true);
+    const { error } = await supabase.rpc("finish_service_work", {
+      p_request_id: backendRequest.id,
+    });
+    if (!error) await loadBackendRequest();
+    setIsUpdatingWork(false);
+  };
+
+  const canTrackWork =
+    Boolean(reference && backendRequest && !isPreAccept) &&
+    backendRequest.professional_status === "approved" &&
+    backendRequest.appointment_decision === "confirmed";
+  const workStarted = Boolean(backendRequest?.work_started_at);
+  const workFinished = Boolean(backendRequest?.work_finished_at);
+
   const customerRequest = reference ? (backendRequest ? {
     id: backendRequest.id,
     reference: backendRequest.reference,
@@ -147,6 +176,22 @@ export const ServiceOrder = (): JSX.Element => {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {canTrackWork && !workFinished && (
+            <Button
+              type="button"
+              onClick={() =>
+                void (workStarted ? handleFinishWork() : handleStartWork())
+              }
+              disabled={isUpdatingWork}
+              className="h-10 rounded-xl border-2 border-[#012878] bg-[#fcce5e] px-4 text-sm font-bold text-[#012878] shadow-none hover:bg-[#fcce5e] hover:brightness-95 disabled:opacity-50"
+            >
+              {isUpdatingWork
+                ? "Saving…"
+                : workStarted
+                  ? "Finish Work"
+                  : "Start Work"}
+            </Button>
+          )}
           {reference && backendRequest && isPreAccept && (
             <Button
               type="button"
