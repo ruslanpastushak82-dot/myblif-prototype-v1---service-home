@@ -44,7 +44,11 @@ const financialFields = [
   },
 ];
 
-export const EstimateManagementSection = (): JSX.Element => {
+export const EstimateManagementSection = ({
+  isPreAccept = false,
+}: {
+  isPreAccept?: boolean;
+}): JSX.Element => {
   const [selectedStatus, setSelectedStatus] = useState("Confirmed");
   const { reference } = useParams<{ reference?: string }>();
   const [date, setDate] = useState("");
@@ -52,7 +56,7 @@ export const EstimateManagementSection = (): JSX.Element => {
   const [duration, setDuration] = useState("");
 
   const sendAppointment = async () => {
-    if (!reference || !date || !arrivalTime || !duration) return;
+    if (isPreAccept || !reference || !date || !arrivalTime || !duration) return;
     const minutes = Number(duration);
     if (!Number.isFinite(minutes) || minutes <= 0) return;
     const { data: order } = await supabase.from("requests").select("id").eq("reference", reference).maybeSingle();
@@ -90,7 +94,7 @@ export const EstimateManagementSection = (): JSX.Element => {
               <Button
                 type="button"
                 onClick={() => void sendAppointment()}
-                disabled={!reference || !date || !arrivalTime || !duration}
+                disabled={isPreAccept || !reference || !date || !arrivalTime || !duration}
                 className="h-[38px] w-full rounded-[9px] border-2 border-[#012878] bg-[#012878] px-0 [font-family:'Inter',Helvetica] text-[13px] font-normal text-white opacity-40 shadow-none hover:bg-[#012878]"
               >
                 Send to Customer
