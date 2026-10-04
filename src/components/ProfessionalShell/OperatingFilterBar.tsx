@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "../ui/card";
 import {
   OperatingFilterKey,
-  operatingFilterCounts,
   operatingFilterDefinitions,
+  type OperatingFilterCounts,
 } from "./operatingFilterData";
+import { supabase } from "../../lib/supabase";
 
 /**
  * Shared Operating Filter Bar for all Professional screens (Stage 7).
@@ -38,9 +39,50 @@ const filterWidths: Record<OperatingFilterKey, string> = {
 
 export const OperatingFilterBar = (): JSX.Element => {
   const [selected, setSelected] = useState<OperatingFilterKey | null>(null);
+  const [counts, setCounts] = useState<OperatingFilterCounts>({
+    critical: 0,
+    newOrders: 0,
+    underReview: 0,
+    awaitingResponse: 0,
+    approved: 0,
+    completed: 0,
+  });
+
+  useEffect(() => {
+    let active = true;
+    const loadCounts = async () => {
+      const { data, error } = await supabase.rpc("get_service_orders_safe");
+      if (!active || error || !data) return;
+      const next: OperatingFilterCounts = {
+        critical: 0,
+        newOrders: 0,
+        underReview: 0,
+        awaitingResponse: 0,
+        approved: 0,
+        completed: 0,
+      };
+      data.forEach((item) => {
+        if (item.critical) next.critical += 1;
+        if (item.professional_status === "new_order") next.newOrders += 1;
+        if (item.professional_status === "under_review") next.underReview += 1;
+        if (item.professional_status === "awaiting_response") next.awaitingResponse += 1;
+        if (item.professional_status === "approved") next.approved += 1;
+        if (item.professional_status === "completed") next.completed += 1;
+      });
+      setCounts(next);
+    };
+    void loadCounts();
+    return () => { active = false; };
+  }, []);
 
   const handleClick = (key: OperatingFilterKey) => {
-    setSelected((current) => (current === key ? null : key));
+    setSelected((current) => {
+      const next = current === key ? null : key;
+      window.dispatchEvent(
+        new CustomEvent("myblif:operating-filter", { detail: next }),
+      );
+      return next;
+    });
   };
 
   return (
@@ -50,7 +92,7 @@ export const OperatingFilterBar = (): JSX.Element => {
     >
       <CardContent className="flex min-h-[54px] w-full items-center justify-center gap-[7.4px] overflow-x-auto p-[6px]">
         {operatingFilterDefinitions.map((filter) => {
-          const count = operatingFilterCounts[filter.key];
+          const count = counts[filter.key];
           const isSelected = selected === filter.key;
           const isCritical = filter.key === "critical";
           const isCriticalAttention = isCritical && count > 0;
