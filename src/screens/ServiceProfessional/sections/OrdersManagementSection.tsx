@@ -15,6 +15,7 @@ import {
   ToggleGroupItem,
 } from "../../../components/ui/toggle-group";
 import type { ProfessionalWorkflowStatus } from "../../../state/CustomerRequestContext";
+import type { OperatingFilterKey } from "../../../components/ProfessionalShell/operatingFilterData";
 
 
 // Layout template: Calendar Day's SchedulingDashboardSection.tsx, verbatim
@@ -119,12 +120,14 @@ const ROW_GAP = 4; // px
 export const OrdersManagementSection = (): JSX.Element => {
   const [selectedTab, setSelectedTab] = useState("All Orders");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [operatingFilter, setOperatingFilter] = useState<OperatingFilterKey | null>(null);
   const navigate = useNavigate();
   const [backendOrders, setBackendOrders] = useState<Array<{
     id: string;
     reference: string;
     service_type: string;
     professional_status: ProfessionalWorkflowStatus;
+    critical: boolean;
   }>>([]);
 
   useEffect(() => {
@@ -140,6 +143,7 @@ export const OrdersManagementSection = (): JSX.Element => {
           reference: item.reference,
           service_type: item.service_type,
           professional_status: item.professional_status,
+          critical: Boolean(item.critical),
         })),
       );
     };
@@ -151,6 +155,16 @@ export const OrdersManagementSection = (): JSX.Element => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleOperatingFilter = (event: Event) => {
+      setOperatingFilter((event as CustomEvent<OperatingFilterKey | null>).detail);
+    };
+    window.addEventListener("myblif:operating-filter", handleOperatingFilter);
+    return () => {
+      window.removeEventListener("myblif:operating-filter", handleOperatingFilter);
+    };
+  }, []);
+
   // Real Customer-submitted orders, newest last (submission order) — kept
   // append-only after the 5 existing mock rows, per Stage 2A §2 ("не
   // видаляй поточні mock orders"). Only real fields the Customer actually
@@ -159,7 +173,20 @@ export const OrdersManagementSection = (): JSX.Element => {
   // Estimate at this stage), so they're left as "—" rather than invented.
   const realOrders: OrderRow[] = useMemo(
     () =>
-      backendOrders.map((item) => ({
+      backendOrders
+        .filter((item) => {
+          if (!operatingFilter) return true;
+          if (operatingFilter === "critical") return Boolean((item as any).critical);
+          const statusByFilter: Record<Exclude<OperatingFilterKey, "critical">, ProfessionalWorkflowStatus> = {
+            newOrders: "new_order",
+            underReview: "under_review",
+            awaitingResponse: "awaiting_response",
+            approved: "approved",
+            completed: "completed",
+          };
+          return item.professional_status === statusByFilter[operatingFilter];
+        })
+        .map((item) => ({
         key: item.reference ?? item.id ?? "unknown",
         number: item.reference ?? "—",
         service: item.service_type,
@@ -174,7 +201,7 @@ export const OrdersManagementSection = (): JSX.Element => {
           navigate(`/service-order/${item.reference}`);
         },
       })),
-    [backendOrders, navigate],
+    [backendOrders, navigate, operatingFilter],
   );
 
   const rows: OrderRow[] = [
