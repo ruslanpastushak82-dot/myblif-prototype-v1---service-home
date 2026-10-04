@@ -185,6 +185,42 @@ export const SchedulingDashboardSection = (): JSX.Element => {
     subtitle: `${item.appointment_arrival_time?.slice(0, 5) ?? ""} · Approved`,
   }));
 
+  const weekEvents = confirmedEvents.filter(
+    (item) =>
+      item.appointment_date >= "2026-09-21" &&
+      item.appointment_date <= "2026-09-27",
+  );
+  const totalPlannedMinutes = weekEvents.reduce(
+    (sum, item) => sum + (item.appointment_duration_minutes ?? 0), 0,
+  );
+  const plannedByCategory = ["Doors", "Furniture", "Plumbing", "Welding", "Other Work"].map((name) => {
+    const minutes = weekEvents
+      .filter((item) =>
+        name === "Other Work"
+          ? !["Doors", "Furniture", "Plumbing", "Welding"].includes(item.service_type)
+          : item.service_type === name,
+      )
+      .reduce((sum, item) => sum + (item.appointment_duration_minutes ?? 0), 0);
+    const percent = totalPlannedMinutes > 0
+      ? Math.round((minutes / totalPlannedMinutes) * 100)
+      : 0;
+    return {
+      name,
+      value: `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} h · ${percent}%`,
+      width: `${percent}%`,
+    };
+  });
+  const liveOccupancyDays = ["21", "22", "23", "24", "25", "26", "27"].map((day) => {
+    const items = weekEvents.filter((item) => item.appointment_date.slice(-2) === day);
+    const busy = (startHour: number, endHour: number) =>
+      items.some((item) => {
+        const hour = Number(item.appointment_arrival_time?.slice(0, 2) ?? -1);
+        const end = hour + (item.appointment_duration_minutes ?? 0) / 60;
+        return hour < endHour && end > startHour;
+      });
+    return { day, am: busy(7, 12) ? "busy" : "free", pm: busy(12, 19) ? "busy" : "free" };
+  });
+
   return (
     <main className="mx-auto flex w-full max-w-[1296px] flex-col gap-2 px-1 py-1 font-['Inter',Helvetica] text-[#012878]">
       <header className="flex items-start justify-between gap-2">
@@ -325,7 +361,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
                 <span>◼ Free</span>
                 <span className="text-[#308cf9]">◼ Busy</span>
               </div>
-              {occupancyDays.map((day) => (
+              {liveOccupancyDays.map((day) => (
                 <div key={day.day} className="text-center">
                   <div>{day.day}</div>
                   <div className="mt-1 h-2 rounded-[3px] bg-[#dceeff]" />
@@ -355,8 +391,8 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       </Card>
       <TimeSummary
         title="Planned Time — Sep 21–27, 2026"
-        total="Total: 10 h"
-        items={plannedItems}
+        total={`Total: ${(totalPlannedMinutes / 60).toFixed(totalPlannedMinutes % 60 === 0 ? 0 : 1)} h`}
+        items={plannedByCategory as typeof plannedItems}
       />
       <TimeSummary
         title="Actual Time — Sep 21–27, 2026"
