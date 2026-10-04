@@ -147,6 +147,33 @@ export const MainContentSubsection = (): JSX.Element => {
   const requestIsReadOnly = request.status === "completed";
   const appointmentActionsDisabled = requestIsReadOnly || !request.appointment;
 
+  const respondToAppointment = async (decision: "confirmed" | "declined") => {
+    if (!request.id || appointmentActionsDisabled) return;
+
+    const { data, error } = await supabase.rpc("respond_to_service_appointment", {
+      p_request_id: request.id,
+      p_decision: decision,
+    });
+    if (error || !data) return;
+
+    setBackendRequest((prev: any) => ({
+      ...(prev ?? request),
+      status: data.status,
+      professionalStatus: data.professional_status,
+      appointmentDecision: data.appointment_decision,
+      appointment: data.appointment_date
+        ? {
+            date: data.appointment_date,
+            time: data.appointment_arrival_time ?? "",
+            duration: data.appointment_duration_minutes
+              ? `${data.appointment_duration_minutes} min`
+              : "",
+            price: prev?.appointment?.price ?? request.appointment?.price ?? "",
+          }
+        : null,
+    }));
+  };
+
   const [chatDraft, setChatDraft] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<
     PendingAttachment[]
@@ -363,7 +390,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 <Button
                   type="button"
                   disabled={appointmentActionsDisabled}
-                  onClick={() => request.id ? void supabase.rpc("respond_to_service_appointment", { p_request_id: request.id, p_decision: "declined" }).then(({ data }) => { if (data) setBackendRequest((prev: any) => ({ ...prev, status: "rescheduled", professionalStatus: "under_review", appointmentDecision: "declined" })); }) : setAppointmentDecision("declined")}
+                  onClick={() => request.id ? void respondToAppointment("declined") : setAppointmentDecision("declined")}
                   className={`h-[42px] flex-1 rounded-[10px] border-2 font-bold disabled:opacity-50 ${border} ${
                     request.appointmentDecision === "declined"
                       ? "bg-[#012878] text-white hover:bg-[#012878]"
@@ -375,7 +402,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 <Button
                   type="button"
                   disabled={appointmentActionsDisabled}
-                  onClick={() => request.id ? void supabase.rpc("respond_to_service_appointment", { p_request_id: request.id, p_decision: "confirmed" }).then(({ data }) => { if (data) setBackendRequest((prev: any) => ({ ...prev, status: "confirmed", professionalStatus: "approved", appointmentDecision: "confirmed" })); }) : setAppointmentDecision("confirmed")}
+                  onClick={() => request.id ? void respondToAppointment("confirmed") : setAppointmentDecision("confirmed")}
                   className={`h-[42px] flex-1 rounded-[10px] border-2 font-bold disabled:opacity-50 ${border} ${
                     request.appointmentDecision === "confirmed"
                       ? "bg-[#012878] text-white hover:bg-[#012878]"
