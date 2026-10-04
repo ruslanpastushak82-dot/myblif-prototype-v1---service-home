@@ -1,6 +1,7 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { addDays, buildMondayFirstMonthGrid, formatMonthTitle, formatWeekTitle, startOfWeekMonday, toLocalDateKey } from "../../../lib/calendarDate";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -27,51 +28,6 @@ const serviceRows = [
 ];
 
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const calendarDates = [
-  null,
-  null,
-  null,
-  null,
-  null,
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15,
-  16,
-  17,
-  18,
-  19,
-  20,
-  21,
-  22,
-  23,
-  24,
-  25,
-  26,
-  27,
-  28,
-  29,
-  30,
-  31,
-  null,
-  null,
-  null,
-  null,
-  null,
-  null,
-];
 
 const calendarEvents: Record<
   number,
@@ -211,6 +167,13 @@ export const SchedulingDashboardSection = (): JSX.Element => {
   const [selectedView, setSelectedView] = useState("Month");
   const [selectedAvailability, setSelectedAvailability] = useState("Free Day");
   const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+  const today = new Date();
+  const weekStart = startOfWeekMonday(today);
+  const weekEnd = addDays(weekStart, 6);
+  const calendarDates = buildMondayFirstMonthGrid(today);
+  const monthStart = toLocalDateKey(new Date(today.getFullYear(), today.getMonth(), 1));
+  const monthEnd = toLocalDateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+  const weekTitle = formatWeekTitle(weekStart);
 
   useEffect(() => {
     void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
@@ -218,18 +181,18 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         setConfirmedEvents(
           data.filter(
             (item) =>
-              item.appointment_date >= "2026-09-01" &&
-              item.appointment_date <= "2026-09-30",
+              item.appointment_date >= monthStart &&
+              item.appointment_date <= monthEnd,
           ),
         );
       }
     });
-  }, []);
+  }, [monthStart, monthEnd]);
 
   const weekEvents = confirmedEvents.filter(
     (item) =>
-      item.appointment_date >= "2026-09-21" &&
-      item.appointment_date <= "2026-09-27",
+      item.appointment_date >= toLocalDateKey(weekStart) &&
+      item.appointment_date <= toLocalDateKey(weekEnd),
   );
   const totalPlannedMinutes = weekEvents.reduce(
     (sum, item) => sum + (item.appointment_duration_minutes ?? 0),
@@ -253,7 +216,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       };
     },
   );
-  const liveOccupancyDays = ["21", "22", "23", "24", "25", "26", "27"].map((day) => {
+  const liveOccupancyDays = Array.from({ length: 7 }, (_, index) => String(addDays(weekStart, index).getDate())).map((day) => {
     const items = weekEvents.filter(
       (item) => item.appointment_date.slice(-2) === day,
     );
@@ -348,7 +311,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
               <ChevronLeftIcon className="h-5 w-5" />
             </Button>
             <h1 className="whitespace-nowrap text-base font-normal sm:text-xl">
-              September 2026
+              {formatMonthTitle(today)}
             </h1>
             <Button
               type="button"
@@ -365,7 +328,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
               variant="ghost"
               className="h-11 rounded-[10px] px-3 text-xs font-medium"
             >
-              Today 21
+              Today {today.getDate()}
             </Button>
           </div>
           <div className="min-w-[680px] overflow-hidden border border-[#012878]">
@@ -409,7 +372,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         <CardContent className="grid gap-2 p-1.5 lg:grid-cols-[minmax(0,1fr)_220px]">
           <section>
             <div className="px-1 text-xs sm:text-[15px]">
-              Occupancy — Sep 21–27, 2026
+              Occupancy — {weekTitle}
             </div>
             <div className="mt-1 grid grid-cols-[auto_auto_auto_repeat(7,minmax(38px,1fr))] items-center gap-x-2 gap-y-1 text-[9px] font-medium sm:text-[11px]">
               <span className="col-span-1" />
@@ -451,12 +414,12 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         </CardContent>
       </Card>
       <TimeSummary
-        title="Planned Time — Sep 21–27, 2026"
+        title="Planned Time — {weekTitle}"
         total={`Total: ${(totalPlannedMinutes / 60).toFixed(totalPlannedMinutes % 60 === 0 ? 0 : 1)} h`}
         items={plannedByCategory as typeof plannedTime}
       />
       <TimeSummary
-        title="Actual Time — Sep 21–27, 2026"
+        title="Actual Time — {weekTitle}"
         total="Total: 0 h"
         items={actualTime}
       />
