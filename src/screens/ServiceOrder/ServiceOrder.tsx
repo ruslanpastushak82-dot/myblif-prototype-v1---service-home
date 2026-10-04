@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ProfessionalShell } from "../../components/ProfessionalShell/ProfessionalShell";
+import { Button } from "../../components/ui/button";
 import { supabase } from "../../lib/supabase";
 import {
   Select,
@@ -48,15 +49,61 @@ export const ServiceOrder = (): JSX.Element => {
   const { getRequestByReference } = useCustomerRequest();
   const contextRequest = reference ? getRequestByReference(reference) : undefined;
   const [backendRequest, setBackendRequest] = useState<Record<string, any> | null>(null);
+  const [isPreAccept, setIsPreAccept] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  const loadBackendRequest = useCallback(async () => {
+    if (!reference || contextRequest) return;
+
+    // Security boundary: always check the safe pre-Accept view first.
+    // Only when the request is no longer available there may this screen
+    // ask RLS for the full row.
+    const { data: safeData, error: safeError } = await supabase.rpc(
+      "get_service_new_order_safe",
+      { p_reference: reference },
+    );
+    if (safeError) return;
+
+    const safeRequest = Array.isArray(safeData) ? safeData[0] : safeData;
+    if (safeRequest) {
+      setBackendRequest(safeRequest);
+      setIsPreAccept(true);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("requests")
+      .select("*")
+      .eq("reference", reference)
+      .maybeSingle();
+    if (!error) {
+      setBackendRequest(data);
+      setIsPreAccept(false);
+    }
+  }, [reference, contextRequest]);
 
   useEffect(() => {
-    if (!reference || contextRequest) return;
     let active = true;
-    void supabase.from("requests").select("*").eq("reference", reference).maybeSingle().then(({ data, error }) => {
-      if (active && !error) setBackendRequest(data);
+    if (!reference || contextRequest) return;
+
+    void loadBackendRequest().then(() => {
+      if (!active) return;
     });
-    return () => { active = false; };
-  }, [reference, contextRequest]);
+
+    return () => {
+      active = false;
+    };
+  }, [reference, contextRequest, loadBackendRequest]);
+
+  const handleAccept = async () => {
+    if (!backendRequest?.id || !isPreAccept || isAccepting) return;
+    setIsAccepting(true);
+    const { error } = await supabase.rpc("accept_service_request", {
+      p_request_id: backendRequest.id,
+    });
+    if (!error) await loadBackendRequest();
+    setIsAccepting(false);
+  };
 
   const customerRequest = contextRequest ?? (backendRequest ? {
     id: backendRequest.id,
@@ -99,7 +146,18 @@ export const ServiceOrder = (): JSX.Element => {
             {workOrder.received}
           </p>
         </div>
-        <Select defaultValue="EN">
+        <div className="flex shrink-0 items-center gap-2">
+          {reference && backendRequest && isPreAccept && (
+            <Button
+              type="button"
+              onClick={() => void handleAccept()}
+              disabled={isAccepting}
+              className="h-10 rounded-xl border-2 border-[#012878] bg-[#fcce5e] px-4 text-sm font-bold text-[#012878] shadow-none hover:bg-[#fcce5e] hover:brightness-95 disabled:opacity-50"
+            >
+              {isAccepting ? "Accepting…" : "Accept & Contact Customer"}
+            </Button>
+          )}
+          <Select defaultValue="EN">
           <SelectTrigger
             aria-label="Language"
             className="h-10 w-20 shrink-0 translate-y-[5px] rounded-xl border-2 border-[#012878] bg-white/80 px-2 text-[#012878]"
@@ -109,7 +167,8 @@ export const ServiceOrder = (): JSX.Element => {
           <SelectContent>
             <SelectItem value="EN">🌐 EN</SelectItem>
           </SelectContent>
-        </Select>
+          </Select>
+        </div>
       </div>
       {/*
         Explicit 3-column layout (same column proportions as before:
@@ -128,11 +187,11 @@ export const ServiceOrder = (): JSX.Element => {
         <div className="flex min-w-0 flex-col gap-3">
           <WorkOrderDetailsSection customerRequest={customerRequest} />
           <ServiceRequestDescriptionSection customerRequest={customerRequest} />
-          <TechnicianChatSection customerRequest={customerRequest} />
+          <TechnicianChatSection customerRequest={customerRequest} isPreAccept={isPreAccept} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <CustomerContactSection customerRequest={customerRequest} />
-          <EstimateManagementSection />
+          <EstimateManagementSection isPreAccept={isPreAccept} />
           <ReminderSchedulingSection />
         </div>
       </div>
