@@ -47,13 +47,13 @@ export const ServiceOrder = (): JSX.Element => {
   // same untouched mock rather than crashing.
   const { reference } = useParams<{ reference?: string }>();
   const { getRequestByReference } = useCustomerRequest();
-  const contextRequest = reference ? getRequestByReference(reference) : undefined;
+  const contextRequest = !reference ? getRequestByReference(reference ?? "") : undefined;
   const [backendRequest, setBackendRequest] = useState<Record<string, any> | null>(null);
   const [isPreAccept, setIsPreAccept] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
 
   const loadBackendRequest = useCallback(async () => {
-    if (!reference || contextRequest) return;
+    if (!reference) return;
 
     // Security boundary: always check the safe pre-Accept view first.
     // Only when the request is no longer available there may this screen
@@ -80,11 +80,11 @@ export const ServiceOrder = (): JSX.Element => {
       setBackendRequest(data);
       setIsPreAccept(false);
     }
-  }, [reference, contextRequest]);
+  }, [reference]);
 
   useEffect(() => {
     let active = true;
-    if (!reference || contextRequest) return;
+    if (!reference) return;
 
     void loadBackendRequest().then(() => {
       if (!active) return;
@@ -93,7 +93,7 @@ export const ServiceOrder = (): JSX.Element => {
     return () => {
       active = false;
     };
-  }, [reference, contextRequest, loadBackendRequest]);
+  }, [reference, loadBackendRequest]);
 
   const handleAccept = async () => {
     if (!backendRequest?.id || !isPreAccept || isAccepting) return;
@@ -105,7 +105,7 @@ export const ServiceOrder = (): JSX.Element => {
     setIsAccepting(false);
   };
 
-  const customerRequest = contextRequest ?? (backendRequest ? {
+  const customerRequest = reference ? (backendRequest ? {
     id: backendRequest.id,
     reference: backendRequest.reference,
     status: backendRequest.status,
@@ -121,7 +121,7 @@ export const ServiceOrder = (): JSX.Element => {
     approximateLocation: backendRequest.approximate_location, propertyType: backendRequest.property_type ?? "",
     appointment: backendRequest.appointment_date ? { date: backendRequest.appointment_date, time: backendRequest.appointment_arrival_time ?? "", duration: backendRequest.appointment_duration_minutes ? `${backendRequest.appointment_duration_minutes} min` : "", price: "" } : null,
     appointmentDecision: backendRequest.appointment_decision, messages: [],
-  } : undefined);
+  } : undefined) : contextRequest;
 
   const workOrder = customerRequest
     ? {
