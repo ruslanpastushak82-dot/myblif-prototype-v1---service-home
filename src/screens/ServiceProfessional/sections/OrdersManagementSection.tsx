@@ -130,8 +130,8 @@ export const OrdersManagementSection = (): JSX.Element => {
   useEffect(() => {
     let active = true;
 
-    const loadNewOrders = async () => {
-      const { data, error } = await supabase.rpc("get_service_new_orders_safe");
+    const loadOrders = async () => {
+      const { data, error } = await supabase.rpc("get_service_orders_safe");
       if (!active || error || !data) return;
 
       setBackendOrders(
@@ -144,7 +144,7 @@ export const OrdersManagementSection = (): JSX.Element => {
       );
     };
 
-    void loadNewOrders();
+    void loadOrders();
 
     return () => {
       active = false;
