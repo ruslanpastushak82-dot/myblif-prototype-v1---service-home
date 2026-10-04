@@ -131,7 +131,7 @@ export const OrdersManagementSection = (): JSX.Element => {
     let active = true;
 
     const loadNewOrders = async () => {
-      const { data, error } = await supabase.rpc("get_service_new_orders");
+      const { data, error } = await supabase.rpc("get_service_new_orders_safe");
       if (!active || error || !data) return;
 
       setBackendOrders(
