@@ -128,6 +128,9 @@ export const OrdersManagementSection = (): JSX.Element => {
     service_type: string;
     professional_status: ProfessionalWorkflowStatus;
     critical: boolean;
+    approximate_location: string | null;
+    client_type: string | null;
+    submitted_at: string | null;
   }>>([]);
 
   useEffect(() => {
@@ -144,6 +147,9 @@ export const OrdersManagementSection = (): JSX.Element => {
           service_type: item.service_type,
           professional_status: item.professional_status,
           critical: Boolean(item.critical),
+          approximate_location: item.approximate_location ?? null,
+          client_type: item.client_type ?? null,
+          submitted_at: item.submitted_at ?? null,
         })),
       );
     };
@@ -212,12 +218,44 @@ export const OrdersManagementSection = (): JSX.Element => {
     [backendOrders, navigate, operatingFilter, selectedTab],
   );
 
+  const sortedRealOrders = useMemo(() => {
+    const items = [...realOrders];
+    if (selectedFilter === "Order Number") {
+      return items.sort((a, b) => a.number.localeCompare(b.number));
+    }
+    if (selectedFilter === "Address") {
+      return items.sort((a, b) => {
+        const aa = backendOrders.find((item) => item.reference === a.number)?.approximate_location ?? "";
+        const bb = backendOrders.find((item) => item.reference === b.number)?.approximate_location ?? "";
+        return aa.localeCompare(bb);
+      });
+    }
+    if (selectedFilter === "Client") {
+      return items.sort((a, b) => {
+        const aa = backendOrders.find((item) => item.reference === a.number)?.client_type ?? "";
+        const bb = backendOrders.find((item) => item.reference === b.number)?.client_type ?? "";
+        return aa.localeCompare(bb);
+      });
+    }
+    if (selectedFilter === "Stage") {
+      return items.sort((a, b) => a.stage.localeCompare(b.stage));
+    }
+    if (selectedFilter === "Sort") {
+      return items.sort((a, b) => {
+        const aa = backendOrders.find((item) => item.reference === a.number)?.submitted_at ?? "";
+        const bb = backendOrders.find((item) => item.reference === b.number)?.submitted_at ?? "";
+        return bb.localeCompare(aa);
+      });
+    }
+    return items;
+  }, [realOrders, backendOrders, selectedFilter]);
+
   const rows: OrderRow[] = [
     ...mockOrders.map((order) => ({
       ...order,
       onOpen: () => navigate("/service-order"),
     })),
-    ...realOrders,
+    ...sortedRealOrders,
   ];
 
   return (
