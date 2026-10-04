@@ -185,6 +185,26 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       width: `${percent}%`,
     };
   });
+  const totalActualMinutes = weekEvents.reduce(
+    (sum, item) => sum + (item.actual_duration_minutes ?? 0), 0,
+  );
+  const actualByCategory = ["Doors", "Furniture", "Plumbing", "Welding", "Other Work"].map((name) => {
+    const minutes = weekEvents
+      .filter((item) =>
+        name === "Other Work"
+          ? !["Doors", "Furniture", "Plumbing", "Welding"].includes(item.service_type)
+          : item.service_type === name,
+      )
+      .reduce((sum, item) => sum + (item.actual_duration_minutes ?? 0), 0);
+    const percent = totalActualMinutes > 0
+      ? Math.round((minutes / totalActualMinutes) * 100)
+      : 0;
+    return {
+      name,
+      value: `${(minutes / 60).toFixed(minutes % 60 === 0 ? 0 : 1)} h · ${percent}%`,
+      width: `${percent}%`,
+    };
+  });
   const liveOccupancyDays = liveDays.map(({ date }) => {
     const items = weekEvents.filter((item) => item.appointment_date.slice(-2) === date);
     const busy = (startHour: number, endHour: number) =>
@@ -401,8 +421,8 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       />
       <TimeSummary
         title="Actual Time — {weekTitle}"
-        total="Total: 0 h"
-        items={actualItems}
+        total={`Total: ${(totalActualMinutes / 60).toFixed(totalActualMinutes % 60 === 0 ? 0 : 1)} h`}
+        items={actualByCategory as typeof actualItems}
       />
 
       <section className="grid gap-2 lg:grid-cols-[455px_435px_1fr]">
