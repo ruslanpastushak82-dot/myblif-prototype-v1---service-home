@@ -84,6 +84,7 @@ export const EstimateManagementSection = ({
                   value={field.label === "Date" ? date : field.label === "Arrival Time" ? arrivalTime : field.label === "Estimated Duration" ? duration : field.value}
                   onChange={(e) => { if (field.label === "Date") setDate(e.target.value); else if (field.label === "Arrival Time") setArrivalTime(e.target.value); else if (field.label === "Estimated Duration") setDuration(e.target.value); }}
                   readOnly={field.label === "Estimated Cost"}
+                  disabled={isPreAccept}
                   placeholder={field.label === "Estimated Duration" ? "Minutes" : undefined}
                   className="h-8 rounded-lg border-2 border-[#012878] bg-[#f9fbfd] px-2.5 [font-family:'Inter',Helvetica] text-[13px] font-normal leading-normal tracking-[0] text-[#1e283a] shadow-none focus-visible:ring-0"
                 />
@@ -107,6 +108,7 @@ export const EstimateManagementSection = ({
                   type="button"
                   aria-pressed={selectedStatus === status.label}
                   onClick={() => setSelectedStatus(status.label)}
+                  disabled={isPreAccept}
                   className={`h-[34px] justify-start rounded-lg border border-[#05388c] px-3 [font-family:'Inter',Helvetica] text-[11px] font-normal tracking-[0] text-[#052d7a] shadow-none hover:bg-inherit ${status.className} ${
                     selectedStatus === status.label
                       ? "ring-1 ring-[#012878] ring-offset-1"
@@ -122,6 +124,7 @@ export const EstimateManagementSection = ({
                 <Button
                   key={action}
                   type="button"
+                  disabled={isPreAccept}
                   className="h-9 justify-start rounded-lg border border-[#1e519e] bg-[#eff7ff] px-2.5 [font-family:'Inter',Helvetica] text-xs font-medium tracking-[0] text-black shadow-none hover:bg-[#eff7ff]"
                 >
                   {action}
@@ -137,7 +140,7 @@ export const EstimateManagementSection = ({
                   <Input
                     defaultValue={field.value}
                     placeholder={field.placeholder}
-                    disabled={field.disabled}
+                    disabled={isPreAccept || field.disabled}
                     className={`h-7 rounded-md border border-[#adb7c6] bg-[#f9f9f9] px-2.5 [font-family:'Inter',Helvetica] text-xs font-normal leading-normal tracking-[0] text-black shadow-none placeholder:text-black focus-visible:ring-0 ${field.className}`}
                   />
                 </div>
@@ -146,6 +149,7 @@ export const EstimateManagementSection = ({
               <div className="col-start-2 mt-1">
                 <Button
                   type="button"
+                  disabled={isPreAccept}
                   className="h-9 w-full justify-start rounded-lg border border-[#1e519e] bg-[#f4f4f4] px-2.5 [font-family:'Inter',Helvetica] text-xs font-medium tracking-[0] text-black opacity-40 shadow-none hover:bg-[#f4f4f4]"
                 >
                   Add Invoice
