@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { addDays, formatDayTitle, formatWeekTitle, startOfWeekMonday, toLocalDateKey } from "../../../lib/calendarDate";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import {
@@ -167,6 +168,19 @@ function TimeSummary({
 export const SchedulingDashboardSection = (): JSX.Element => {
   const [selectedView, setSelectedView] = useState("Day");
   const [confirmedEvents, setConfirmedEvents] = useState<any[]>([]);
+  const today = new Date();
+  const weekStart = startOfWeekMonday(today);
+  const weekEnd = addDays(weekStart, 6);
+  const todayKey = toLocalDateKey(today);
+  const weekTitle = formatWeekTitle(weekStart);
+  const liveDays = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    return {
+      label: `${date.toLocaleDateString("en-CA", { weekday: "short" })} ${date.getDate()}`,
+      active: toLocalDateKey(date) === todayKey,
+      sunday: date.getDay() === 0,
+    };
+  });
 
   useEffect(() => {
     void supabase.rpc("get_professional_calendar_events").then(({ data, error }) => {
@@ -177,7 +191,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
   }, []);
 
   const dayEvents = confirmedEvents.filter(
-    (item) => item.appointment_date === "2026-09-22",
+    (item) => item.appointment_date === todayKey,
   );
   const realTimelineEvents: TimelineEvent[] = dayEvents.map((item) => ({
     time: item.appointment_arrival_time?.slice(0, 5) ?? "",
@@ -187,8 +201,8 @@ export const SchedulingDashboardSection = (): JSX.Element => {
 
   const weekEvents = confirmedEvents.filter(
     (item) =>
-      item.appointment_date >= "2026-09-21" &&
-      item.appointment_date <= "2026-09-27",
+      item.appointment_date >= toLocalDateKey(weekStart) &&
+      item.appointment_date <= toLocalDateKey(weekEnd),
   );
   const totalPlannedMinutes = weekEvents.reduce(
     (sum, item) => sum + (item.appointment_duration_minutes ?? 0), 0,
@@ -210,7 +224,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       width: `${percent}%`,
     };
   });
-  const liveOccupancyDays = ["21", "22", "23", "24", "25", "26", "27"].map((day) => {
+  const liveOccupancyDays = Array.from({ length: 7 }, (_, index) => String(addDays(weekStart, index).getDate())).map((day) => {
     const items = weekEvents.filter((item) => item.appointment_date.slice(-2) === day);
     const busy = (startHour: number, endHour: number) =>
       items.some((item) => {
@@ -290,7 +304,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
             >
               ←
             </Button>
-            <h1 className="text-xl font-normal">September 22, 2026</h1>
+            <h1 className="text-xl font-normal">{formatDayTitle(today)}</h1>
             <Button
               type="button"
               variant="outline"
@@ -305,11 +319,11 @@ export const SchedulingDashboardSection = (): JSX.Element => {
               variant="outline"
               className={`h-11 rounded-[10px] border-2 ${border} bg-[#ffffffeb] px-[18px] text-sm font-medium ${navy}`}
             >
-              Today 21
+              Today {today.getDate()}
             </Button>
           </div>
           <div className="mt-1.5 grid grid-cols-7 gap-2.5">
-            {days.map((day) => (
+            {liveDays.map((day) => (
               <div
                 key={day.label}
                 className={`flex h-7 items-center justify-center rounded-lg text-xs font-medium ${
@@ -355,7 +369,7 @@ export const SchedulingDashboardSection = (): JSX.Element => {
       <Card className={`${panel} overflow-hidden`}>
         <CardContent className="grid grid-cols-[1fr_220px] gap-2 p-1.5">
           <section>
-            <h2 className="px-1 text-[15px]">Occupancy — Sep 21–27, 2026</h2>
+            <h2 className="px-1 text-[15px]">Occupancy — {weekTitle}</h2>
             <div className="mt-1 grid grid-cols-[190px_repeat(7,1fr)] items-center gap-2 text-[9.5px]">
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <span>◼ Free</span>
@@ -390,12 +404,12 @@ export const SchedulingDashboardSection = (): JSX.Element => {
         </CardContent>
       </Card>
       <TimeSummary
-        title="Planned Time — Sep 21–27, 2026"
+        title="Planned Time — {weekTitle}"
         total={`Total: ${(totalPlannedMinutes / 60).toFixed(totalPlannedMinutes % 60 === 0 ? 0 : 1)} h`}
         items={plannedByCategory as typeof plannedItems}
       />
       <TimeSummary
-        title="Actual Time — Sep 21–27, 2026"
+        title="Actual Time — {weekTitle}"
         total="Total: 0 h"
         items={actualItems}
       />
