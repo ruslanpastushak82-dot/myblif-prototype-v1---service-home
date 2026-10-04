@@ -133,6 +133,13 @@ export const OrdersManagementSection = (): JSX.Element => {
     approximate_location: string | null;
     client_type: string | null;
     submitted_at: string | null;
+    appointment_decision: string | null;
+    appointment_date: string | null;
+    appointment_arrival_time: string | null;
+    appointment_duration_minutes: number | null;
+    work_started_at: string | null;
+    work_finished_at: string | null;
+    actual_duration_minutes: number | null;
   }>>([]);
 
   useEffect(() => {
@@ -152,6 +159,13 @@ export const OrdersManagementSection = (): JSX.Element => {
           approximate_location: item.approximate_location ?? null,
           client_type: item.client_type ?? null,
           submitted_at: item.submitted_at ?? null,
+          appointment_decision: item.appointment_decision ?? null,
+          appointment_date: item.appointment_date ?? null,
+          appointment_arrival_time: item.appointment_arrival_time ?? null,
+          appointment_duration_minutes: item.appointment_duration_minutes ?? null,
+          work_started_at: item.work_started_at ?? null,
+          work_finished_at: item.work_finished_at ?? null,
+          actual_duration_minutes: item.actual_duration_minutes ?? null,
         })),
       );
     };
@@ -209,9 +223,32 @@ export const OrdersManagementSection = (): JSX.Element => {
         stage: item.professional_status
           ? professionalStatusLabels[item.professional_status]
           : "—",
-        nextAction: "—",
-        deadline: "—",
-        progress: "—",
+        nextAction:
+          item.professional_status === "new_order"
+            ? "Review Request"
+            : item.professional_status === "under_review"
+              ? "Prepare / Send Proposal"
+              : item.professional_status === "awaiting_response"
+                ? "Awaiting Customer Response"
+                : item.professional_status === "approved" && !item.work_started_at
+                  ? "Start Work"
+                  : item.professional_status === "approved" && item.work_started_at && !item.work_finished_at
+                    ? "Finish Work"
+                    : item.professional_status === "completed"
+                      ? "Completed"
+                      : "—",
+        deadline:
+          item.appointment_decision === "confirmed" && item.appointment_date
+            ? `${item.appointment_date}${item.appointment_arrival_time ? ` · ${item.appointment_arrival_time.slice(0, 5)}` : ""}`
+            : "—",
+        progress:
+          item.work_finished_at || item.professional_status === "completed"
+            ? "Completed"
+            : item.work_started_at
+              ? "In Progress"
+              : item.professional_status === "approved"
+                ? "Not Started"
+                : "—",
         onOpen: () => {
           if (!item.reference) return;
           navigate(`/service-order/${item.reference}`);
