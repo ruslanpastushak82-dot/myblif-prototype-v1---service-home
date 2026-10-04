@@ -52,6 +52,9 @@ export const ServiceOrder = (): JSX.Element => {
   const [isPreAccept, setIsPreAccept] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isUpdatingWork, setIsUpdatingWork] = useState(false);
+  const [showManualTime, setShowManualTime] = useState(false);
+  const [manualStart, setManualStart] = useState("");
+  const [manualFinish, setManualFinish] = useState("");
 
   const loadBackendRequest = useCallback(async () => {
     if (!reference) return;
@@ -127,6 +130,31 @@ export const ServiceOrder = (): JSX.Element => {
     setIsUpdatingWork(false);
   };
 
+  const handleManualWorkTime = async () => {
+    if (!backendRequest?.id || !manualStart || !manualFinish || isUpdatingWork) return;
+    const startedAt = new Date(manualStart);
+    const finishedAt = new Date(manualFinish);
+    if (
+      Number.isNaN(startedAt.getTime()) ||
+      Number.isNaN(finishedAt.getTime()) ||
+      finishedAt <= startedAt
+    ) {
+      window.alert("Finish time must be after start time.");
+      return;
+    }
+    setIsUpdatingWork(true);
+    const { error } = await supabase.rpc("set_service_actual_work_time", {
+      p_request_id: backendRequest.id,
+      p_started_at: startedAt.toISOString(),
+      p_finished_at: finishedAt.toISOString(),
+    });
+    if (!error) {
+      setShowManualTime(false);
+      await loadBackendRequest();
+    }
+    setIsUpdatingWork(false);
+  };
+
   const canTrackWork =
     Boolean(reference && backendRequest && !isPreAccept) &&
     backendRequest.professional_status === "approved" &&
@@ -176,6 +204,15 @@ export const ServiceOrder = (): JSX.Element => {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {canTrackWork && !workFinished && !workStarted && (
+            <Button
+              type="button"
+              onClick={() => setShowManualTime((value) => !value)}
+              className="h-10 rounded-xl border-2 border-[#012878] bg-white px-4 text-sm font-bold text-[#012878] shadow-none hover:bg-[#f5f8ff]"
+            >
+              Enter Time
+            </Button>
+          )}
           {canTrackWork && !workFinished && (
             <Button
               type="button"
@@ -224,6 +261,36 @@ export const ServiceOrder = (): JSX.Element => {
         center = Order Details -> Request Description -> MYBLIF Chat,
         right = Customer -> Estimate -> Reminders.
       */}
+      {showManualTime && canTrackWork && !workStarted && !workFinished && (
+        <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-[#012878] bg-white p-3">
+          <label className="text-xs font-medium text-[#012878]">
+            Actual Start
+            <input
+              type="datetime-local"
+              value={manualStart}
+              onChange={(event) => setManualStart(event.target.value)}
+              className="mt-1 block h-9 rounded-lg border border-[#012878] px-2 text-sm"
+            />
+          </label>
+          <label className="text-xs font-medium text-[#012878]">
+            Actual Finish
+            <input
+              type="datetime-local"
+              value={manualFinish}
+              onChange={(event) => setManualFinish(event.target.value)}
+              className="mt-1 block h-9 rounded-lg border border-[#012878] px-2 text-sm"
+            />
+          </label>
+          <Button
+            type="button"
+            onClick={() => void handleManualWorkTime()}
+            disabled={isUpdatingWork || !manualStart || !manualFinish}
+            className="h-9 rounded-lg bg-[#012878] px-4 text-sm text-white"
+          >
+            Save Actual Time
+          </Button>
+        </div>
+      )}
       <div className="mt-2 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(88px,0.29fr)_minmax(0,1fr)_minmax(220px,0.72fr)] sm:items-start">
         <div className="flex min-w-0 flex-col gap-3">
           <CustomerMediaSection customerRequest={customerRequest} />
