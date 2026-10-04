@@ -54,8 +54,10 @@ const attachmentButtons = [
 
 export const TechnicianChatSection = ({
   customerRequest,
+  isPreAccept = false,
 }: {
   customerRequest?: CustomerRequest;
+  isPreAccept?: boolean;
 }): JSX.Element => {
   const { sendProfessionalMessage } = useCustomerRequest();
 
@@ -73,11 +75,14 @@ export const TechnicianChatSection = ({
   }, []);
 
   useEffect(() => {
-    if (!customerRequest?.id) return;
+    if (!customerRequest?.id || isPreAccept) {
+      setStoredMessages([]);
+      return;
+    }
     void supabase.from("messages").select("id,text,sender_id").eq("request_id", customerRequest.id).is("offer_id", null).order("created_at").then(({ data, error }) => {
       if (!error && data) setStoredMessages(data);
     });
-  }, [customerRequest?.id]);
+  }, [customerRequest?.id, isPreAccept]);
 
   // Security hardening (pre-Stage-2C audit): the Professional composer had
   // no Completed-order gating at all before -- UI-level only, mirroring
@@ -90,7 +95,7 @@ export const TechnicianChatSection = ({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!customerRequest || isCompleted) {
+    if (!customerRequest || isCompleted || isPreAccept) {
       // No real order open, or order is Completed -- unchanged Stage 1
       // placeholder behaviour / Context guard backs this up regardless.
       return;
@@ -222,7 +227,7 @@ export const TechnicianChatSection = ({
               // is display-only for that case.
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              disabled={isCompleted}
+              disabled={isCompleted || isPreAccept}
               className="h-[46px] min-w-0 rounded-[14px] border-2 border-solid border-[#012878] px-4 [font-family:'Inter',Helvetica] text-sm text-[#012878] shadow-none placeholder:text-[#012878] disabled:opacity-50"
             />
             {attachmentButtons.map((button) => (
@@ -230,6 +235,7 @@ export const TechnicianChatSection = ({
                 key={button.id}
                 type="button"
                 aria-label={button.ariaLabel}
+                disabled={isCompleted || isPreAccept}
                 className={`h-[46px] w-[52px] rounded-[10px] border border-solid border-[#012878] p-0 [font-family:'Inter',Helvetica] text-sm font-bold text-[#012878] shadow-none hover:brightness-95 ${button.className}`}
               >
                 {button.label}
@@ -238,7 +244,7 @@ export const TechnicianChatSection = ({
 
             <Button
               type="submit"
-              disabled={isCompleted}
+              disabled={isCompleted || isPreAccept}
               className="h-[46px] w-[118px] rounded-[10px] border-2 border-solid border-[#012878] bg-[#fcce5e] p-0 [font-family:'Inter',Helvetica] text-sm font-bold text-[#012878] shadow-none hover:bg-[#fcce5e] hover:brightness-95 disabled:opacity-50"
             >
               Send
