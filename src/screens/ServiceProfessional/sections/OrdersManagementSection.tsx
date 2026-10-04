@@ -105,6 +105,36 @@ const professionalStatusLabels: Record<ProfessionalWorkflowStatus, string> = {
   completed: "Completed",
 };
 
+const getAutomaticWorkState = (item: {
+  professional_status: ProfessionalWorkflowStatus;
+  appointment_decision: string | null;
+  appointment_date: string | null;
+  appointment_arrival_time: string | null;
+  appointment_duration_minutes: number | null;
+  work_started_at: string | null;
+  work_finished_at: string | null;
+}): "overdue" | "not_completed" | null => {
+  if (
+    item.professional_status !== "approved" ||
+    item.appointment_decision !== "confirmed" ||
+    !item.appointment_date ||
+    !item.appointment_arrival_time ||
+    item.work_finished_at
+  ) return null;
+
+  const start = new Date(`${item.appointment_date}T${item.appointment_arrival_time}`);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const now = new Date();
+  if (!item.work_started_at) {
+    return now.getTime() > start.getTime() ? "overdue" : null;
+  }
+
+  const durationMs = Math.max(item.appointment_duration_minutes ?? 0, 0) * 60_000;
+  const plannedFinish = new Date(start.getTime() + durationMs);
+  return durationMs > 0 && now.getTime() > plannedFinish.getTime() ? "not_completed" : null;
+};
+
 // Fixed geometry for the Orders content card at 1440x1024:
 // Card bottom is targeted to align with the Sidebar/Profile bottom edge
 // (measured nav bottom at this viewport), and row height is sized so the
@@ -220,11 +250,20 @@ export const OrdersManagementSection = (): JSX.Element => {
         key: item.reference ?? item.id ?? "unknown",
         number: item.reference ?? "—",
         service: item.service_type,
-        stage: item.professional_status
-          ? professionalStatusLabels[item.professional_status]
-          : "—",
+        stage:
+          getAutomaticWorkState(item) === "overdue"
+            ? "Overdue"
+            : getAutomaticWorkState(item) === "not_completed"
+              ? "Not Completed"
+              : item.professional_status
+                ? professionalStatusLabels[item.professional_status]
+                : "—",
         nextAction:
-          item.professional_status === "new_order"
+          getAutomaticWorkState(item) === "overdue"
+            ? "Start Work"
+            : getAutomaticWorkState(item) === "not_completed"
+              ? "Finish Work"
+              : item.professional_status === "new_order"
             ? "Review Request"
             : item.professional_status === "under_review"
               ? "Prepare / Send Proposal"
@@ -242,13 +281,17 @@ export const OrdersManagementSection = (): JSX.Element => {
             ? `${item.appointment_date}${item.appointment_arrival_time ? ` · ${item.appointment_arrival_time.slice(0, 5)}` : ""}`
             : "—",
         progress:
-          item.work_finished_at || item.professional_status === "completed"
-            ? "Completed"
-            : item.work_started_at
-              ? "In Progress"
-              : item.professional_status === "approved"
-                ? "Not Started"
-                : "—",
+          getAutomaticWorkState(item) === "overdue"
+            ? "Overdue"
+            : getAutomaticWorkState(item) === "not_completed"
+              ? "Not Completed"
+              : item.work_finished_at || item.professional_status === "completed"
+                ? "Completed"
+                : item.work_started_at
+                  ? "In Progress"
+                  : item.professional_status === "approved"
+                    ? "Not Started"
+                    : "—",
         onOpen: () => {
           if (!item.reference) return;
           navigate(`/service-order/${item.reference}`);
