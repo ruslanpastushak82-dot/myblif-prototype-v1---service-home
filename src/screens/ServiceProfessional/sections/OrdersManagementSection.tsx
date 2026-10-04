@@ -306,7 +306,7 @@ export const OrdersManagementSection = (): JSX.Element => {
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Address</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><Button type="button" variant="outline" className={controlClass}><span className="truncate px-1">Approx. Location</span><ChevronDownIcon className="h-3 w-3 shrink-0" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={() => setAddressFilter(null)}>All</DropdownMenuItem>
               {addressOptions.map((value) => <DropdownMenuItem key={value} onSelect={() => setAddressFilter(value)}>{value}</DropdownMenuItem>)}
