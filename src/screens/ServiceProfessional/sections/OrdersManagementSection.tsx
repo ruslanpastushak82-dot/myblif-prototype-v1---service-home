@@ -171,15 +171,7 @@ export const OrdersManagementSection = (): JSX.Element => {
         progress: "—",
         onOpen: () => {
           if (!item.reference) return;
-          void supabase
-            .rpc("claim_service_request", { p_request_id: item.id })
-            .then(({ error }) => {
-              if (error) {
-                console.error("Unable to claim service request", error);
-                return;
-              }
-              navigate(`/service-order/${item.reference}`);
-            });
+          navigate(`/service-order/${item.reference}`);
         },
       })),
     [backendOrders, navigate],
