@@ -1,3 +1,5 @@
+begin;
+
 -- MYBLIF Service Stage 1: repair Professional Orders read path.
 -- Source of truth: request fields live on public.requests.
 -- service_request_intake is used only as an intake-existence eligibility condition.
@@ -103,6 +105,8 @@ begin
 end;
 $function$;
 
-revoke all on function public.get_service_orders_safe() from public;
-revoke all on function public.get_service_orders_safe() from anon;
+revoke execute on function public.get_service_orders_safe() from public;
+revoke execute on function public.get_service_orders_safe() from anon;
 grant execute on function public.get_service_orders_safe() to authenticated;
+
+commit;
