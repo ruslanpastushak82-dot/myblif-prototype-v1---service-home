@@ -153,6 +153,9 @@ export const OrdersManagementSection = (): JSX.Element => {
   const [stageFilter, setStageFilter] = useState<ProfessionalWorkflowStatus | null>(null);
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [operatingFilter, setOperatingFilter] = useState<OperatingFilterKey | null>(null);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const showMockOrders =
+    import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK_ORDERS === "true";
   const navigate = useNavigate();
   const [backendOrders, setBackendOrders] = useState<Array<{
     id: string;
@@ -177,8 +180,21 @@ export const OrdersManagementSection = (): JSX.Element => {
 
     const loadOrders = async () => {
       const { data, error } = await supabase.rpc("get_service_orders_safe");
-      if (!active || error || !data) return;
+      if (!active) return;
+      if (error) {
+        console.error("[MYBLIF Orders] get_service_orders_safe failed", error);
+        setOrdersError(error.message || "Unable to load orders.");
+        setBackendOrders([]);
+        return;
+      }
+      if (!data) {
+        console.error("[MYBLIF Orders] get_service_orders_safe returned no data");
+        setOrdersError("Unable to load orders.");
+        setBackendOrders([]);
+        return;
+      }
 
+      setOrdersError(null);
       setBackendOrders(
         data.map((item) => ({
           id: item.id,
@@ -328,10 +344,12 @@ export const OrdersManagementSection = (): JSX.Element => {
   );
 
   const rows: OrderRow[] = [
-    ...mockOrders.map((order) => ({
-      ...order,
-      onOpen: () => navigate("/service-order"),
-    })),
+    ...(showMockOrders
+      ? mockOrders.map((order) => ({
+          ...order,
+          onOpen: () => navigate("/service-order"),
+        }))
+      : []),
     ...filteredRealOrders,
   ];
 
@@ -438,6 +456,15 @@ export const OrdersManagementSection = (): JSX.Element => {
 
       {/* Same hairline divider Calendar Day renders right below its header. */}
       <div className="h-px w-full bg-[#308cf959]" />
+
+      {ordersError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          Orders could not be loaded: {ordersError}
+        </div>
+      )}
 
       {/*
         Calendar Day's two service-category button rows are removed
