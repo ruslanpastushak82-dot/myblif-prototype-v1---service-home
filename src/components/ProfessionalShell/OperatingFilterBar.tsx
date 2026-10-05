@@ -39,6 +39,7 @@ const filterWidths: Record<OperatingFilterKey, string> = {
 
 export const OperatingFilterBar = (): JSX.Element => {
   const [selected, setSelected] = useState<OperatingFilterKey | null>(null);
+  const [countsError, setCountsError] = useState<string | null>(null);
   const [counts, setCounts] = useState<OperatingFilterCounts>({
     critical: 0,
     newOrders: 0,
@@ -52,7 +53,18 @@ export const OperatingFilterBar = (): JSX.Element => {
     let active = true;
     const loadCounts = async () => {
       const { data, error } = await supabase.rpc("get_service_orders_safe");
-      if (!active || error || !data) return;
+      if (!active) return;
+      if (error) {
+        console.error("[MYBLIF OperatingFilterBar] get_service_orders_safe failed", error);
+        setCountsError(error.message || "Unable to load order counts.");
+        return;
+      }
+      if (!data) {
+        console.error("[MYBLIF OperatingFilterBar] get_service_orders_safe returned no data");
+        setCountsError("Unable to load order counts.");
+        return;
+      }
+      setCountsError(null);
       const next: OperatingFilterCounts = {
         critical: 0,
         newOrders: 0,
@@ -90,6 +102,11 @@ export const OperatingFilterBar = (): JSX.Element => {
       aria-label="Operating filter bar"
       className="w-full overflow-hidden rounded-[14px] border-2 border-solid border-[#012878] bg-[#ffffffb8] shadow-none"
     >
+      {countsError && (
+        <div role="alert" className="px-3 pt-2 text-xs text-red-700">
+          Order counts unavailable: {countsError}
+        </div>
+      )}
       <CardContent className="flex min-h-[54px] w-full items-center justify-center gap-[7.4px] overflow-x-auto p-[6px]">
         {operatingFilterDefinitions.map((filter) => {
           const count = counts[filter.key];
