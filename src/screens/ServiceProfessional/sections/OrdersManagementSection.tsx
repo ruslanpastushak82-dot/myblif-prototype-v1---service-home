@@ -183,13 +183,9 @@ export const OrdersManagementSection = (): JSX.Element => {
     const loadOrders = async () => {
       if (loading) return;
       loading = true;
-      let result: Awaited<ReturnType<typeof supabase.rpc>>;
-      try {
-        result = await supabase.rpc("get_service_orders_safe");
-      } finally {
+      const { data, error } = await supabase.rpc("get_service_orders_safe").finally(() => {
         loading = false;
-      }
-      const { data, error } = result;
+      });
       if (!active) return;
       if (error) {
         console.error("get_service_orders_safe failed", error);
