@@ -57,8 +57,9 @@ export const OperatingFilterBar = (): JSX.Element => {
     const loadCounts = async () => {
       if (loading) return;
       loading = true;
-      const { data, error } = await supabase.rpc("get_service_orders_safe");
-      loading = false;
+      const { data, error } = await supabase.rpc("get_service_orders_safe").finally(() => {
+        loading = false;
+      });
       if (!active) return;
       if (error) {
         console.error("get_service_orders_safe failed", error);
