@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
+import { loadChatMessages, openChatAttachment, sendChatMessage } from "../../../../lib/chat";
+import type { StoredChatMessage } from "../../../../lib/chat";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../../../components/ui/button";
@@ -64,7 +66,7 @@ export const MainContentSubsection = (): JSX.Element => {
   // empty display-only request rather than crashing. Every `request.*`
   // reference below is unchanged from Stage 1.
   const [backendRequest, setBackendRequest] = useState<any>(null);
-  const [storedMessages, setStoredMessages] = useState<any[]>([]);
+  const [storedMessages, setStoredMessages] = useState<StoredChatMessage[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const request = backendRequest ?? activeRequest ?? emptyCustomerRequest();
 
@@ -127,14 +129,11 @@ export const MainContentSubsection = (): JSX.Element => {
         messages: [],
       });
 
-      const { data: chat } = await supabase
-        .from("messages")
-        .select("id,text,sender_id,created_at")
-        .eq("request_id", data.id)
-        .is("offer_id", null)
-        .order("created_at");
-
-      if (chat) setStoredMessages(chat);
+      try {
+        setStoredMessages(await loadChatMessages(data.id));
+      } catch (error) {
+        console.error("loadChatMessages failed", error);
+      }
     };
 
     void load();
@@ -203,8 +202,13 @@ export const MainContentSubsection = (): JSX.Element => {
     if (request.id) {
       void supabase.auth.getUser().then(async ({ data }) => {
         if (!data.user) return;
-        const { data: inserted, error } = await supabase.from("messages").insert({ request_id: request.id, sender_id: data.user.id, text: trimmed }).select("id,text,sender_id,created_at").single();
-        if (!error && inserted) setStoredMessages((prev) => [...prev, inserted]);
+        try {
+          await sendChatMessage(request.id, trimmed, pendingAttachments.map(({ file, kind }) => ({ file, kind })));
+          setStoredMessages(await loadChatMessages(request.id));
+        } catch (error) {
+          console.error("sendChatMessage failed", error);
+          return;
+        }
       });
     } else {
       sendMessage(trimmed, pendingAttachments.map(({ file, kind }) => ({ file, kind })));
@@ -458,13 +462,7 @@ export const MainContentSubsection = (): JSX.Element => {
                             <button
                               key={attachment.id}
                               type="button"
-                              onClick={() =>
-                                window.open(
-                                  attachment.url,
-                                  "_blank",
-                                  "noopener,noreferrer",
-                                )
-                              }
+                              onClick={() => void ("storage_path" in attachment ? openChatAttachment(attachment.storage_path) : Promise.resolve(window.open(attachment.url, "_blank", "noopener,noreferrer")))}
                               className="w-fit underline decoration-dotted text-left"
                             >
                               {attachment.kind === "photo" ? "📷" : "🎥"}{" "}
