@@ -177,20 +177,23 @@ export const OrdersManagementSection = (): JSX.Element => {
 
   useEffect(() => {
     let active = true;
+    let intervalId: number | null = null;
+    let loading = false;
 
     const loadOrders = async () => {
+      if (loading) return;
+      loading = true;
       const { data, error } = await supabase.rpc("get_service_orders_safe");
+      loading = false;
       if (!active) return;
       if (error) {
-        console.error("[MYBLIF Orders] get_service_orders_safe failed", error);
+        console.error("get_service_orders_safe failed", error);
         setOrdersError(error.message || "Unable to load orders.");
-        setBackendOrders([]);
         return;
       }
       if (!data) {
         console.error("[MYBLIF Orders] get_service_orders_safe returned no data");
         setOrdersError("Unable to load orders.");
-        setBackendOrders([]);
         return;
       }
 
@@ -216,10 +219,39 @@ export const OrdersManagementSection = (): JSX.Element => {
       );
     };
 
-    void loadOrders();
+    const stopPolling = () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState !== "visible") return;
+      intervalId = window.setInterval(() => {
+        if (document.visibilityState === "visible") void loadOrders();
+      }, 45_000);
+    };
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible") {
+        stopPolling();
+        return;
+      }
+      void loadOrders();
+      startPolling();
+    };
+
+    refreshIfVisible();
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    window.addEventListener("focus", refreshIfVisible);
 
     return () => {
       active = false;
+      stopPolling();
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.removeEventListener("focus", refreshIfVisible);
     };
   }, []);
 
