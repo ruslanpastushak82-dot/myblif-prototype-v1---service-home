@@ -51,11 +51,17 @@ export const OperatingFilterBar = (): JSX.Element => {
 
   useEffect(() => {
     let active = true;
+    let intervalId: number | null = null;
+    let loading = false;
+
     const loadCounts = async () => {
+      if (loading) return;
+      loading = true;
       const { data, error } = await supabase.rpc("get_service_orders_safe");
+      loading = false;
       if (!active) return;
       if (error) {
-        console.error("[MYBLIF OperatingFilterBar] get_service_orders_safe failed", error);
+        console.error("get_service_orders_safe failed", error);
         setCountsError(error.message || "Unable to load order counts.");
         return;
       }
@@ -83,9 +89,49 @@ export const OperatingFilterBar = (): JSX.Element => {
       });
       setCounts(next);
     };
-    void loadCounts();
-    return () => { active = false; };
+    const stopPolling = () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState !== "visible") return;
+      intervalId = window.setInterval(() => {
+        if (document.visibilityState === "visible") void loadCounts();
+      }, 45_000);
+    };
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible") {
+        stopPolling();
+        return;
+      }
+      void loadCounts();
+      startPolling();
+    };
+
+    refreshIfVisible();
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    window.addEventListener("focus", refreshIfVisible);
+
+    return () => {
+      active = false;
+      stopPolling();
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.removeEventListener("focus", refreshIfVisible);
+    };
   }, []);
+
+  useEffect(() => {
+    const initialTitle = document.title;
+    document.title = counts.newOrders > 0 ? `(${counts.newOrders}) MYBLIF` : initialTitle;
+    return () => {
+      document.title = initialTitle;
+    };
+  }, [counts.newOrders]);
 
   const handleClick = (key: OperatingFilterKey) => {
     setSelected((current) => {
