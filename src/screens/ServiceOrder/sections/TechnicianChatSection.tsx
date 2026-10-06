@@ -1,5 +1,8 @@
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { loadChatMessages, openChatAttachment, sendChatMessage } from "../../../lib/chat";
+import type { StoredChatMessage } from "../../../lib/chat";
+import type { MediaKind } from "../../../state/CustomerRequestContext";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
@@ -65,7 +68,10 @@ export const TechnicianChatSection = ({
   // for a real order (customerRequest present, with its own reference) --
   // the mock/no-order fallback keeps the exact Stage 1 inert behaviour.
   const [draft, setDraft] = useState("");
-  const [storedMessages, setStoredMessages] = useState<Array<{ id: string; text: string; sender_id: string }>>([]);
+  const [storedMessages, setStoredMessages] = useState<StoredChatMessage[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; kind: MediaKind }>>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,9 +85,7 @@ export const TechnicianChatSection = ({
       setStoredMessages([]);
       return;
     }
-    void supabase.from("messages").select("id,text,sender_id").eq("request_id", customerRequest.id).is("offer_id", null).order("created_at").then(({ data, error }) => {
-      if (!error && data) setStoredMessages(data);
-    });
+    void loadChatMessages(customerRequest.id).then(setStoredMessages).catch((error) => console.error("loadChatMessages failed", error));
   }, [customerRequest?.id, isPreAccept]);
 
   // Security hardening (pre-Stage-2C audit): the Professional composer had
@@ -102,13 +106,19 @@ export const TechnicianChatSection = ({
     }
 
     const trimmed = draft.trim();
-    if (!trimmed) return;
+    if (!trimmed && pendingFiles.length === 0) return;
 
     if (customerRequest.id) {
       void supabase.auth.getUser().then(async ({ data }) => {
         if (!data.user) return;
-        const { data: inserted, error } = await supabase.from("messages").insert({ request_id: customerRequest.id, sender_id: data.user.id, text: trimmed }).select("id,text,sender_id").single();
-        if (!error && inserted) setStoredMessages((prev) => [...prev, inserted]);
+        try {
+          await sendChatMessage(customerRequest.id, trimmed, pendingFiles);
+          setStoredMessages(await loadChatMessages(customerRequest.id));
+          setPendingFiles([]);
+        } catch (error) {
+          console.error("sendChatMessage failed", error);
+          return;
+        }
       });
     } else {
       sendProfessionalMessage(customerRequest.reference, trimmed);
@@ -123,6 +133,7 @@ export const TechnicianChatSection = ({
     ? storedMessages.map((message) => ({
         id: message.id,
         text: message.text,
+        attachments: message.attachments,
         className: message.sender_id === currentUserId
           ? "w-full max-w-[520px] self-end bg-[#eaeff4]"
           : "w-full max-w-[440px] self-start bg-[#dbe8f9]",
@@ -175,16 +186,12 @@ export const TechnicianChatSection = ({
                             key={attachment.id}
                             type="button"
                             onClick={() =>
-                              window.open(
-                                attachment.url,
-                                "_blank",
-                                "noopener,noreferrer",
-                              )
+                              "storage_path" in attachment ? void openChatAttachment(attachment.storage_path) : window.open(attachment.url, "_blank", "noopener,noreferrer")
                             }
                             className="w-fit text-left underline decoration-dotted"
                           >
                             {attachment.kind === "photo" ? "📷" : "🎥"}{" "}
-                            {attachment.name}
+                            {"file_name" in attachment ? attachment.file_name : attachment.name}
                           </button>
                         ))}
                       </div>
@@ -236,6 +243,7 @@ export const TechnicianChatSection = ({
                 type="button"
                 aria-label={button.ariaLabel}
                 disabled={isCompleted || isPreAccept}
+                onClick={() => button.id === "photo" ? photoInputRef.current?.click() : button.id === "video" ? videoInputRef.current?.click() : undefined}
                 className={`h-[46px] w-[52px] rounded-[10px] border border-solid border-[#012878] p-0 [font-family:'Inter',Helvetica] text-sm font-bold text-[#012878] shadow-none hover:brightness-95 ${button.className}`}
               >
                 {button.label}
@@ -250,6 +258,8 @@ export const TechnicianChatSection = ({
               Send
             </Button>
           </form>
+          <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) setPendingFiles((prev) => [...prev, { file, kind: "photo" }]); event.target.value = ""; }} />
+          <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) setPendingFiles((prev) => [...prev, { file, kind: "video" }]); event.target.value = ""; }} />
         </section>
       </CardContent>
     </Card>
