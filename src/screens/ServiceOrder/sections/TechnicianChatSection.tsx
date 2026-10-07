@@ -1,6 +1,8 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../lib/supabase";
-import { createChatDraft, loadChatMessages, openChatAttachment, sendChatDraft } from "../../../lib/chat";\nimport type { ChatDraft, StoredChatMessage } from "../../../lib/chat";\nimport { MEDIA_REJECTION_MESSAGES, validateMediaFile } from "../../../lib/mediaLimits";
+import { createChatDraft, loadChatMessages, openChatAttachment, sendChatDraft } from "../../../lib/chat";
+import type { ChatDraft, StoredChatMessage } from "../../../lib/chat";
+import { MEDIA_REJECTION_MESSAGES, validateMediaFile } from "../../../lib/mediaLimits";
 import type { MediaKind } from "../../../state/CustomerRequestContext";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
@@ -68,7 +70,8 @@ export const TechnicianChatSection = ({
   // the mock/no-order fallback keeps the exact Stage 1 inert behaviour.
   const [draft, setDraft] = useState("");
   const [storedMessages, setStoredMessages] = useState<StoredChatMessage[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; kind: MediaKind }>>([]);\n  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; kind: MediaKind }>>([]);
+  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -211,7 +214,9 @@ export const TechnicianChatSection = ({
                           <button
                             key={attachment.id}
                             type="button"
-                            onClick={() =>\n                              "storage_path" in attachment ? void openChatAttachment(attachment.kind, attachment.storage_path) : window.open(attachment.url, "_blank", "noopener,noreferrer")\n                            }
+                            onClick={() =>
+                              "storage_path" in attachment ? void openChatAttachment(attachment.kind, attachment.storage_path) : window.open(attachment.url, "_blank", "noopener,noreferrer")
+                            }
                             className="w-fit text-left underline decoration-dotted"
                           >
                             {attachment.kind === "photo" ? "📷" : "🎥"}{" "}
