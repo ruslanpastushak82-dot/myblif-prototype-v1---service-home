@@ -71,13 +71,22 @@ create or replace function private.chat_request_writable(p_request_id uuid)
 returns boolean
 language sql stable security definer set search_path=''
 as $$
-  select private.can_access_message_scope(p_request_id,null)
-     and exists (
-       select 1 from public.requests r
-       where r.id=p_request_id
-         and r.status::text <> 'completed'
-         and coalesce(r.professional_status::text,'') <> 'completed'
-     );
+  select exists (
+    select 1
+    from public.requests r
+    where r.id=p_request_id
+      and r.status::text <> 'completed'
+      and coalesce(r.professional_status::text,'') <> 'completed'
+      and (
+        r.customer_id=auth.uid()
+        or exists (
+          select 1
+          from public.request_participants rp
+          where rp.request_id=r.id
+            and rp.user_id=auth.uid()
+        )
+      )
+  );
 $$;
 
 create or replace function private.chat_upload_allowed(p_bucket text,p_name text)
@@ -129,6 +138,10 @@ using (
     or exists (
       select 1 from public.message_attachments a
       where a.storage_path=storage.objects.name
+        and (
+          (a.kind='photo' and storage.objects.bucket_id='chat-photos')
+          or (a.kind='video' and storage.objects.bucket_id='chat-videos')
+        )
     )
   )
 );
@@ -329,6 +342,10 @@ as $$
     and not exists (
       select 1 from public.message_attachments a
       where a.storage_path=o.name
+        and (
+          (a.kind='photo' and o.bucket_id='chat-photos')
+          or (a.kind='video' and o.bucket_id='chat-videos')
+        )
     )
   order by o.created_at
   limit least(greatest(p_limit,1),1000);
