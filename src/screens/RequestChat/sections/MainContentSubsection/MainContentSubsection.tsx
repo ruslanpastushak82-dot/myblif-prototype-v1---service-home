@@ -266,6 +266,17 @@ export const MainContentSubsection = (): JSX.Element => {
         // multiple chat messages, not just per single pick. Validated (and
         // rejected) before any object URL is created / state is touched.
         const committed = getMediaCounts(request);
+        const persistedOwn = storedMessages.reduce(
+          (counts, message) => {
+            if (message.sender_id !== currentUserId) return counts;
+            for (const attachment of message.attachments) {
+              if (attachment.kind === "photo") counts.photos += 1;
+              else if (attachment.kind === "video") counts.videos += 1;
+            }
+            return counts;
+          },
+          { photos: 0, videos: 0 },
+        );
         const pendingPhotos = pendingAttachments.filter(
           (item) => item.kind === "photo",
         ).length;
@@ -273,8 +284,8 @@ export const MainContentSubsection = (): JSX.Element => {
           (item) => item.kind === "video",
         ).length;
         const result = validateMediaFile(file, kind, {
-          photos: committed.photos + pendingPhotos,
-          videos: committed.videos + pendingVideos,
+          photos: committed.photos + persistedOwn.photos + pendingPhotos,
+          videos: committed.videos + persistedOwn.videos + pendingVideos,
         });
         if (!result.ok) {
           setMediaError(MEDIA_REJECTION_MESSAGES[result.reason]);
