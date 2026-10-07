@@ -214,6 +214,8 @@ begin
     '{}'::text[]
   );
 
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text||':'||v_uid::text,0));
+
   select m.id into v_msg_id
   from public.messages m
   where m.sender_id=v_uid and m.client_message_id=p_client_message_id;
@@ -237,7 +239,6 @@ begin
     raise exception 'Too many messages, slow down' using errcode='PT429';
   end if;
 
-  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text||':'||v_uid::text,0));
   select count(*) filter(where a.kind='photo'),
          count(*) filter(where a.kind='video')
     into v_have_photos,v_have_videos
