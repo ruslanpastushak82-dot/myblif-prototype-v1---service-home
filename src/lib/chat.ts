@@ -16,6 +16,21 @@ export type StoredChatMessage = {
   attachments: StoredChatAttachment[];
 };
 
+export type ChatDraft = {
+  requestId: string;
+  clientMessageId: string;
+  text: string;
+  items: Array<{
+    file: File;
+    kind: MediaKind;
+    path: string;
+    fileName: string;
+    uploaded: boolean;
+  }>;
+};
+
+const BUCKET = { photo: "chat-photos", video: "chat-videos" } as const;
+
 export const loadChatMessages = async (requestId: string): Promise<StoredChatMessage[]> => {
   const { data, error } = await supabase
     .from("messages")
@@ -35,61 +50,65 @@ export const loadChatMessages = async (requestId: string): Promise<StoredChatMes
 
 const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-export const sendChatMessage = async (
+export const createChatDraft = async (
   requestId: string,
   text: string,
   files: Array<{ file: File; kind: MediaKind }>,
-): Promise<void> => {
+): Promise<ChatDraft> => {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user) throw new Error("Authentication required.");
 
-  const trimmed = text.trim();
-  if (!trimmed && files.length === 0) return;
-
-  const { data: message, error: messageError } = await supabase
-    .from("messages")
-    .insert({ request_id: requestId, sender_id: user.id, text: trimmed })
-    .select("id")
-    .single();
-  if (messageError || !message) throw messageError ?? new Error("Message was not created.");
-
-  const uploaded: string[] = [];
-  try {
-    for (const item of files) {
-      const path = `${user.id}/${requestId}/${message.id}/${crypto.randomUUID()}-${safeName(item.file.name)}`;
-      const { error: uploadError } = await supabase.storage
-        .from("chat-media")
-        .upload(path, item.file, { contentType: item.file.type, upsert: false });
-      if (uploadError) throw uploadError;
-      uploaded.push(path);
-
-      const { error: attachmentError } = await supabase
-        .from("message_attachments")
-        .insert({
-          message_id: message.id,
-          request_id: requestId,
-          uploader_id: user.id,
-          kind: item.kind,
-          storage_path: path,
-          file_name: item.file.name,
-          mime_type: item.file.type,
-          size_bytes: item.file.size,
-        });
-      if (attachmentError) throw attachmentError;
-    }
-  } catch (error) {
-    if (uploaded.length > 0) {
-      await supabase.storage.from("chat-media").remove(uploaded);
-    }
-    await supabase.from("messages").delete().eq("id", message.id);
-    throw error;
-  }
+  return {
+    requestId,
+    clientMessageId: crypto.randomUUID(),
+    text: text.trim(),
+    items: files.map(({ file, kind }) => ({
+      file,
+      kind,
+      path: `${user.id}/${requestId}/${crypto.randomUUID()}-${safeName(file.name)}`,
+      fileName: file.name,
+      uploaded: false,
+    })),
+  };
 };
 
-export const openChatAttachment = async (storagePath: string): Promise<void> => {
+const isAlreadyExists = (error: unknown): boolean => {
+  const value = error as { statusCode?: string | number; message?: string };
+  return String(value?.statusCode) === "409" || /already exists/i.test(value?.message ?? "");
+};
+
+export const sendChatDraft = async (draft: ChatDraft): Promise<void> => {
+  if (!draft.text && draft.items.length === 0) return;
+
+  for (const item of draft.items) {
+    if (item.uploaded) continue;
+    const { error } = await supabase.storage
+      .from(BUCKET[item.kind])
+      .upload(item.path, item.file, { contentType: item.file.type, upsert: false });
+    if (error && !isAlreadyExists(error)) throw error;
+    item.uploaded = true;
+  }
+
+  const { error } = await supabase.rpc("send_chat_message", {
+    p_request_id: draft.requestId,
+    p_text: draft.text,
+    p_client_message_id: draft.clientMessageId,
+    p_attachments: draft.items.map((item) => ({
+      kind: item.kind,
+      storage_path: item.path,
+      file_name: item.fileName,
+    })),
+  });
+  if (error) throw error;
+};
+
+export const openChatAttachment = async (
+  kind: MediaKind,
+  storagePath: string,
+): Promise<void> => {
   const { data, error } = await supabase.storage
-    .from("chat-media")
+    .from(BUCKET[kind])
     .createSignedUrl(storagePath, 60);
   if (error || !data?.signedUrl) throw error ?? new Error("Attachment is unavailable.");
   window.open(data.signedUrl, "_blank", "noopener,noreferrer");
