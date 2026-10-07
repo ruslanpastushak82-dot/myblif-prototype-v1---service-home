@@ -34,10 +34,23 @@ export const MEDIA_REJECTION_MESSAGES: Record<MediaRejectionReason, string> = {
 
 export type MediaCounts = { photos: number; videos: number };
 
+const PHOTO_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const VIDEO_MIME_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
+
 export const isSupportedMediaType = (file: File, kind: MediaKind): boolean =>
   kind === "photo"
-    ? file.type.startsWith("image/")
-    : file.type.startsWith("video/");
+    ? PHOTO_MIME_TYPES.has(file.type)
+    : VIDEO_MIME_TYPES.has(file.type);
 
 export type MediaValidationResult =
   | { ok: true }
