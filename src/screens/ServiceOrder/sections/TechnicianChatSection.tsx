@@ -1,7 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../lib/supabase";
-import { loadChatMessages, openChatAttachment, sendChatMessage } from "../../../lib/chat";
-import type { StoredChatMessage } from "../../../lib/chat";
+import { createChatDraft, loadChatMessages, openChatAttachment, sendChatDraft } from "../../../lib/chat";\nimport type { ChatDraft, StoredChatMessage } from "../../../lib/chat";\nimport { MEDIA_REJECTION_MESSAGES, validateMediaFile } from "../../../lib/mediaLimits";
 import type { MediaKind } from "../../../state/CustomerRequestContext";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
@@ -69,7 +68,7 @@ export const TechnicianChatSection = ({
   // the mock/no-order fallback keeps the exact Stage 1 inert behaviour.
   const [draft, setDraft] = useState("");
   const [storedMessages, setStoredMessages] = useState<StoredChatMessage[]>([]);
-  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; kind: MediaKind }>>([]);
+  const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; kind: MediaKind }>>([]);\n  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -88,6 +87,32 @@ export const TechnicianChatSection = ({
     void loadChatMessages(customerRequest.id).then(setStoredMessages).catch((error) => console.error("loadChatMessages failed", error));
   }, [customerRequest?.id, isPreAccept]);
 
+  useEffect(() => {
+    if (!customerRequest?.id || isPreAccept) return;
+    const requestId = customerRequest.id;
+    const channel = supabase
+      .channel(`professional-chat-${requestId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `request_id=eq.${requestId}`,
+        },
+        () => {
+          void loadChatMessages(requestId)
+            .then(setStoredMessages)
+            .catch((error) => console.error("loadChatMessages failed", error));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [customerRequest?.id, isPreAccept]);
+
   // Security hardening (pre-Stage-2C audit): the Professional composer had
   // no Completed-order gating at all before -- UI-level only, mirroring
   // Customer's `isReadOnly` (see Context's `sendProfessionalMessage`
@@ -99,30 +124,31 @@ export const TechnicianChatSection = ({
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!customerRequest || isCompleted || isPreAccept) {
-      // No real order open, or order is Completed -- unchanged Stage 1
-      // placeholder behaviour / Context guard backs this up regardless.
-      return;
-    }
+    if (!customerRequest || isCompleted || isPreAccept) return;
 
     const trimmed = draft.trim();
     if (!trimmed && pendingFiles.length === 0) return;
 
     if (customerRequest.id) {
-      void supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) return;
+      void (async () => {
         try {
-          await sendChatMessage(customerRequest.id, trimmed, pendingFiles);
+          const outgoing =
+            retryDraft ??
+            (await createChatDraft(customerRequest.id, trimmed, pendingFiles));
+          setRetryDraft(outgoing);
+          await sendChatDraft(outgoing);
           setStoredMessages(await loadChatMessages(customerRequest.id));
+          setRetryDraft(null);
           setPendingFiles([]);
+          setDraft("");
         } catch (error) {
-          console.error("sendChatMessage failed", error);
-          return;
+          console.error("sendChatDraft failed", error);
         }
-      });
-    } else {
-      sendProfessionalMessage(customerRequest.reference, trimmed);
+      })();
+      return;
     }
+
+    sendProfessionalMessage(customerRequest.reference, trimmed);
     setDraft("");
   };
 
@@ -185,9 +211,7 @@ export const TechnicianChatSection = ({
                           <button
                             key={attachment.id}
                             type="button"
-                            onClick={() =>
-                              "storage_path" in attachment ? void openChatAttachment(attachment.storage_path) : window.open(attachment.url, "_blank", "noopener,noreferrer")
-                            }
+                            onClick={() =>\n                              "storage_path" in attachment ? void openChatAttachment(attachment.kind, attachment.storage_path) : window.open(attachment.url, "_blank", "noopener,noreferrer")\n                            }
                             className="w-fit text-left underline decoration-dotted"
                           >
                             {attachment.kind === "photo" ? "📷" : "🎥"}{" "}
@@ -233,7 +257,7 @@ export const TechnicianChatSection = ({
               // still ignores `draft` on submit (see handleSubmit), so this
               // is display-only for that case.
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => { setRetryDraft(null); setDraft(event.target.value); }}
               disabled={isCompleted || isPreAccept}
               className="h-[46px] min-w-0 rounded-[14px] border-2 border-solid border-[#012878] px-4 [font-family:'Inter',Helvetica] text-sm text-[#012878] shadow-none placeholder:text-[#012878] disabled:opacity-50"
             />
@@ -258,8 +282,36 @@ export const TechnicianChatSection = ({
               Send
             </Button>
           </form>
-          <input ref={photoInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) setPendingFiles((prev) => [...prev, { file, kind: "photo" }]); event.target.value = ""; }} />
-          <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) setPendingFiles((prev) => [...prev, { file, kind: "video" }]); event.target.value = ""; }} />
+          <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              const committed = storedMessages.reduce((count, message) => count + (message.sender_id === currentUserId ? message.attachments.filter((item) => item.kind === "photo").length : 0), 0);
+              const pending = pendingFiles.filter((item) => item.kind === "photo").length;
+              const result = validateMediaFile(file, "photo", { photos: committed + pending, videos: 0 });
+              if (result.ok) {
+                setRetryDraft(null);
+                setPendingFiles((prev) => [...prev, { file, kind: "photo" }]);
+              } else {
+                console.error(MEDIA_REJECTION_MESSAGES[result.reason]);
+              }
+            }
+            event.target.value = "";
+          }} />
+          <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm" capture="environment" className="hidden" onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              const committed = storedMessages.reduce((count, message) => count + (message.sender_id === currentUserId ? message.attachments.filter((item) => item.kind === "video").length : 0), 0);
+              const pending = pendingFiles.filter((item) => item.kind === "video").length;
+              const result = validateMediaFile(file, "video", { photos: 0, videos: committed + pending });
+              if (result.ok) {
+                setRetryDraft(null);
+                setPendingFiles((prev) => [...prev, { file, kind: "video" }]);
+              } else {
+                console.error(MEDIA_REJECTION_MESSAGES[result.reason]);
+              }
+            }
+            event.target.value = "";
+          }} />
         </section>
       </CardContent>
     </Card>
