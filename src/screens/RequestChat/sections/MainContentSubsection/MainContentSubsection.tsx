@@ -199,7 +199,10 @@ export const MainContentSubsection = (): JSX.Element => {
   };
 
   const [chatDraft, setChatDraft] = useState("");
-  const [pendingAttachments, setPendingAttachments] = useState<\n    PendingAttachment[]\n  >([]);\n  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
+  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
   // Security hardening (file limits, owner-approved 2026-09-28): short,
   // specific reason shown when a picked chat photo/video is rejected --
   // shares the exact same limits/messages as Quick Request (src/lib/
@@ -291,7 +294,11 @@ export const MainContentSubsection = (): JSX.Element => {
           setMediaError(MEDIA_REJECTION_MESSAGES[result.reason]);
         } else {
           setMediaError(null);
-          setRetryDraft(null);\n          setPendingAttachments((prev) => [\n            ...prev,\n            { id: createLocalId(), file, kind },\n          ]);
+          setRetryDraft(null);
+          setPendingAttachments((prev) => [
+            ...prev,
+            { id: createLocalId(), file, kind },
+          ]);
         }
       }
       event.target.value = "";
@@ -299,7 +306,8 @@ export const MainContentSubsection = (): JSX.Element => {
 
   const handleRemovePending = (id: string) => {
     if (requestIsReadOnly) return;
-    setRetryDraft(null);\n    setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
+    setRetryDraft(null);
+    setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
   // Customer flow fix (owner-approved 2026-09-28): lets the customer open
