@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { loadChatMessages, openChatAttachment, sendChatMessage } from "../../../../lib/chat";
-import type { StoredChatMessage } from "../../../../lib/chat";
+import { createChatDraft, loadChatMessages, openChatAttachment, sendChatDraft } from "../../../../lib/chat";
+import type { ChatDraft, StoredChatMessage } from "../../../../lib/chat";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../../../components/ui/button";
@@ -139,6 +139,31 @@ export const MainContentSubsection = (): JSX.Element => {
     void load();
   }, [reference, activeRequest?.id]);
 
+  useEffect(() => {
+    if (!request.id) return;
+    const channel = supabase
+      .channel(`customer-chat-${request.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `request_id=eq.${request.id}`,
+        },
+        () => {
+          void loadChatMessages(request.id)
+            .then(setStoredMessages)
+            .catch((error) => console.error("loadChatMessages failed", error));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [request.id]);
+
   // Stage 2B §4 (Appointment safety): while there's no real Appointment yet
   // (request.appointment === null), Confirm/Decline stay disabled and
   // appointmentDecision stays pending -- no fake date/time/duration/price.
@@ -174,9 +199,7 @@ export const MainContentSubsection = (): JSX.Element => {
   };
 
   const [chatDraft, setChatDraft] = useState("");
-  const [pendingAttachments, setPendingAttachments] = useState<
-    PendingAttachment[]
-  >([]);
+  const [pendingAttachments, setPendingAttachments] = useState<\n    PendingAttachment[]\n  >([]);\n  const [retryDraft, setRetryDraft] = useState<ChatDraft | null>(null);
   // Security hardening (file limits, owner-approved 2026-09-28): short,
   // specific reason shown when a picked chat photo/video is rejected --
   // shares the exact same limits/messages as Quick Request (src/lib/
@@ -199,20 +222,34 @@ export const MainContentSubsection = (): JSX.Element => {
     if (requestIsReadOnly) return;
     const trimmed = chatDraft.trim();
     if (!trimmed && pendingAttachments.length === 0) return;
+
     if (request.id) {
-      void supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) return;
+      void (async () => {
         try {
-          await sendChatMessage(request.id, trimmed, pendingAttachments.map(({ file, kind }) => ({ file, kind })));
+          const outgoing =
+            retryDraft ??
+            (await createChatDraft(
+              request.id,
+              trimmed,
+              pendingAttachments.map(({ file, kind }) => ({ file, kind })),
+            ));
+          setRetryDraft(outgoing);
+          await sendChatDraft(outgoing);
           setStoredMessages(await loadChatMessages(request.id));
+          setRetryDraft(null);
+          setChatDraft("");
+          setPendingAttachments([]);
         } catch (error) {
-          console.error("sendChatMessage failed", error);
-          return;
+          console.error("sendChatDraft failed", error);
         }
-      });
-    } else {
-      sendMessage(trimmed, pendingAttachments.map(({ file, kind }) => ({ file, kind })));
+      })();
+      return;
     }
+
+    sendMessage(
+      trimmed,
+      pendingAttachments.map(({ file, kind }) => ({ file, kind })),
+    );
     setChatDraft("");
     setPendingAttachments([]);
   };
@@ -243,10 +280,7 @@ export const MainContentSubsection = (): JSX.Element => {
           setMediaError(MEDIA_REJECTION_MESSAGES[result.reason]);
         } else {
           setMediaError(null);
-          setPendingAttachments((prev) => [
-            ...prev,
-            { id: createLocalId(), file, kind },
-          ]);
+          setRetryDraft(null);\n          setPendingAttachments((prev) => [\n            ...prev,\n            { id: createLocalId(), file, kind },\n          ]);
         }
       }
       event.target.value = "";
@@ -254,7 +288,7 @@ export const MainContentSubsection = (): JSX.Element => {
 
   const handleRemovePending = (id: string) => {
     if (requestIsReadOnly) return;
-    setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
+    setRetryDraft(null);\n    setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
   // Customer flow fix (owner-approved 2026-09-28): lets the customer open
@@ -462,7 +496,7 @@ export const MainContentSubsection = (): JSX.Element => {
                             <button
                               key={attachment.id}
                               type="button"
-                              onClick={() => void ("storage_path" in attachment ? openChatAttachment(attachment.storage_path) : Promise.resolve(window.open(attachment.url, "_blank", "noopener,noreferrer")))}
+                              onClick={() => void ("storage_path" in attachment ? openChatAttachment(attachment.kind, attachment.storage_path) : Promise.resolve(window.open(attachment.url, "_blank", "noopener,noreferrer")))}
                               className="w-fit underline decoration-dotted text-left"
                             >
                               {attachment.kind === "photo" ? "📷" : "🎥"}{" "}
@@ -533,7 +567,7 @@ export const MainContentSubsection = (): JSX.Element => {
                 <Input
                   aria-label="Message"
                   value={chatDraft}
-                  onChange={(event) => setChatDraft(event.target.value)}
+                  onChange={(event) => { setRetryDraft(null); setChatDraft(event.target.value); }}
                   disabled={requestIsReadOnly}
                   placeholder="Type your message…"
                   className={`h-[46px] flex-1 rounded-[14px] border-2 bg-white text-[13px] ${border} placeholder:text-[#012878]`}
