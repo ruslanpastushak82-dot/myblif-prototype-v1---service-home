@@ -12,10 +12,10 @@ create table if not exists public.message_attachments (
   mime_type text not null,
   size_bytes bigint not null check (size_bytes > 0),
   created_at timestamptz not null default now(),
-  constraint message_attachments_message_request_fkey
-    foreign key (message_id, request_id)
-    references public.messages(id, request_id)
-    on delete cascade
+  -- request_id is independently protected by RLS. The message FK uses
+  -- messages(id), which is already the table's primary key; requiring a
+  -- composite (id, request_id) target would fail unless messages had an
+  -- additional matching UNIQUE constraint.
 );
 
 alter table public.message_attachments enable row level security;
