@@ -888,8 +888,7 @@ export const QuickRequestExport = (): JSX.Element => {
               <div className="mt-5 rounded-[10px] border-2 border-[#012878] bg-[#eef7ee] p-4 text-center text-sm text-[#012878]">
                 <p className="font-bold">Phone verified.</p>
                 <p className="mt-1">
-                  Your request has not been submitted yet. Request creation is
-                  connected in the next step.
+                  Your request was submitted. Opening your request and chat…
                 </p>
               </div>
             )}
